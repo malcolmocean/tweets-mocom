@@ -15,11 +15,30 @@ Live: **https://tweets.malcolmocean.com**
 | `/threads/` | All share-worthy threads, sortable by topic, date, length, likes, RTs |
 | `/threads/<topic>/` | One thread per page |
 | `/top/` | 500 most-liked tweets, sortable by likes, RTs, date, or RT/like ratio |
+| `/retweets/` | Every retweet, searchable, plus who gets retweeted most |
 
 Plus `/sitemap.xml` and `/robots.txt` — the archive is meant to be crawled.
 
 **"Worth sharing"** = a self-reply chain that is **6+ tweets long** OR has **30+ total likes**.
 Currently 965 of 5,217 chains. Tune in `src/config.js`.
+
+## Retweets are shown but never counted
+
+The archive stores a retweet as a tweet of Malcolm's whose text is `RT @them: …`, and — the
+trap — its `favorite_count` and `retweet_count` are the **original tweet's**, not his. Counted
+naively, 6.2k retweets add ~17k borrowed RTs to an account that earned ~13k, so totals, month
+colours and `/top` end up measuring other people's reach.
+
+So `loadArchive()` splits the archive in two: `archive.own` is what he wrote and every count on
+the site is over it; `archive.tweets` stays the full record for the pages that display retweets
+in place. Retweets are excluded from threads, `/top`, and all totals; they appear on month pages
+(toggleable, like replies) and on `/retweets/`, where the "Reach" column is explicitly labelled
+as the original author's.
+
+Detection is `^RT @user[: ]` — anchored, so an old-style manual retweet with a comment in front
+("Well said. RT @them …") is still counted as Malcolm's own tweet. Self-retweets (`RT
+@Malcolm_Ocean`, ~350 of them) are retweets too: the tweet they point at is already in the
+archive with its own numbers, so counting the retweet would double it.
 
 ## Refreshing
 
@@ -56,7 +75,7 @@ src/
   config.js       account, site constants, thread thresholds
   archive.js      community-archive REST client (paging, retries)
   fetch.js        → data/tweets.json
-  model.js        archive → tweets / self-reply chains / month buckets
+  model.js        archive → own tweets / retweets / self-reply chains / month buckets
   name-threads.js → data/thread-names.json (Claude API, batched + concurrent)
   render.js       page shell, tweet markup, client-side sort/filter scripts
   build.js        → public/
@@ -74,4 +93,5 @@ single self-contained file that works without JS.
   may also hold company Cloudflare credentials — check `wrangler whoami` before deploying.
 - `ANTHROPIC_API_KEY` is only needed for `name-threads`.
 - Media is hot-linked from `pbs.twimg.com`; images Twitter has dropped remove themselves client-side.
-- The archive covers own tweets only (no retweets of others), 2009-06-20 → present.
+- Covers 2009-06-20 → present: 47k own tweets plus 6.2k retweets, which are shown but not counted.
+- `/retweets/` is one big page (~2.6 MB, ~530 KB gzipped) so that search and sort span all of it.

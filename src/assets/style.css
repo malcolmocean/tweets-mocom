@@ -83,13 +83,24 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
   color: var(--faint); padding-top: 0.9rem; margin: 0;
 }
 
-/* reply filter */
+/* retweets of other people — visible, but visibly not his */
+.tweet.is-retweet { border-left: 2px solid var(--rule); padding-left: 0.85rem; }
+.tweet.is-retweet .tweet-text { color: var(--muted); }
+.rt-head {
+  font-size: 0.83rem; color: var(--faint); margin: 0 0 0.3rem;
+}
+.rt-head::before { content: "\21BB"; margin-right: 0.35rem; }
+
+/* reply + retweet filters */
 body.hide-replies .is-reply { display: none; }
+body.hide-retweets .is-retweet { display: none; }
 .filter {
   display: flex; gap: 0.45rem; align-items: center;
-  font-size: 0.88rem; color: var(--muted); margin: 0 0 1.2rem;
+  font-size: 0.88rem; color: var(--muted); margin: 0 0 0.7rem;
   cursor: pointer; user-select: none;
 }
+.filter:last-of-type { margin-bottom: 1.2rem; }
+.note { font-size: 0.88rem; color: var(--faint); margin: -0.8rem 0 1.8rem; }
 
 /* calendar */
 .cal { width: 100%; border-collapse: separate; border-spacing: 3px; }
@@ -147,6 +158,27 @@ table.rows td.num { text-align: right; font-variant-numeric: tabular-nums; color
 table.rows td.date { color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.rows td.snip { color: var(--muted); }
 table.rows .title { color: var(--fg); font-weight: 550; }
+
+/* retweets page */
+.rt-top {
+  list-style: none; padding: 0; margin: 0 0 1.5rem;
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem;
+  font-size: 0.92rem;
+}
+.rt-top .n { color: var(--faint); font-variant-numeric: tabular-nums; }
+.search-row {
+  display: flex; flex-wrap: wrap; gap: 0.6rem 0.9rem; align-items: baseline;
+  margin: 0 0 0.9rem;
+}
+.search-row input {
+  flex: 1 1 16rem; min-width: 0;
+  font: inherit; font-size: 0.94rem;
+  padding: 0.45rem 0.7rem; border-radius: 7px;
+  border: 1px solid var(--rule); background: var(--panel); color: var(--fg);
+}
+.search-row input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.search-count { font-size: 0.85rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+table.rows td .rt-user { white-space: nowrap; }
 
 /* pager + misc */
 .pager {

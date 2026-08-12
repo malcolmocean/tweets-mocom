@@ -3,8 +3,8 @@
 import { mkdir, writeFile, readFile, rm, cp } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadArchive, assembleChains, chainToThread, worthSharing, months, MONTH_NAMES } from './model.js';
-import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT } from './render.js';
+import { loadArchive, assembleChains, chainToThread, worthSharing, months, retweetedAccounts, MONTH_NAMES } from './model.js';
+import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT, SEARCH_SCRIPT } from './render.js';
 import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES } from './config.js';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
@@ -41,10 +41,11 @@ function calendarPage(ms, color) {
   const rows = years.map(y => {
     const cells = MONTH_NAMES.map((_, i) => {
       const m = byKey.get(`${y}-${String(i + 1).padStart(2, '0')}`);
-      if (!m || !m.count) return '<td><span class="cell empty"></span></td>';
+      if (!m || !m.tweets.length) return '<td><span class="cell empty"></span></td>';
       const c = color(m);
+      const rt = m.retweets ? `, ${num(m.retweets)} retweets of others` : '';
       return `<td><a class="cell" href="/by-month/${m.key}/" style="background:${c.css}"
- title="${esc(monthLabel(m.key))} — ${num(m.count)} tweets, ${num(m.likes)} likes, ${num(m.rts)} RTs"
+ title="${esc(monthLabel(m.key))} — ${num(m.count)} tweets, ${num(m.likes)} likes, ${num(m.rts)} RTs${rt}"
  ><span style="color:${c.light ? '#000' : '#fff'}">${num(m.count)}</span></a></td>`;
     }).join('');
     return `<tr><td class="yr">${y}</td>${cells}</tr>`;
@@ -52,7 +53,8 @@ function calendarPage(ms, color) {
 
   const totals = ms.reduce((a, m) => ({
     count: a.count + m.count, likes: a.likes + m.likes, rts: a.rts + m.rts,
-  }), { count: 0, likes: 0, rts: 0 });
+    retweets: a.retweets + m.retweets,
+  }), { count: 0, likes: 0, rts: 0, retweets: 0 });
 
   return layout({
     title: `Tweets by month — ${SITE_TITLE}`,
@@ -63,7 +65,8 @@ function calendarPage(ms, color) {
     body: `<h1>By month</h1>
 <p class="lede">Every month since ${ms[0].year}. Each cell is coloured by how that month went:
 red for retweets, green for likes, blue for sheer volume — so a bright cyan month was busy
-and well-liked, and a dark one was quiet. Hover for the numbers.</p>
+and well-liked, and a dark one was quiet. Hover for the numbers.
+Tweets he <a href="/retweets/">retweeted</a> show up on the month pages but aren't counted here.</p>
 <div class="stats">
   <div><b>${num(totals.count)}</b> tweets</div>
   <div><b>${num(totals.likes)}</b> likes</div>
@@ -118,8 +121,10 @@ ${tag}${run.map(x => tweetHtml(x)).join('\n')}
   <div><b>${num(m.count)}</b> tweets</div>
   <div><b>${num(m.likes)}</b> likes</div>
   <div><b>${num(m.rts)}</b> retweets</div>
+${m.retweets ? `  <div><b>${num(m.retweets)}</b> <a href="/retweets/">retweeted</a></div>` : ''}
 </div>
 ${replies ? `<label class="filter"><input type="checkbox" data-filter="replies" checked> Include ${num(replies)} replies to other people</label>` : ''}
+${m.retweets ? `<label class="filter"><input type="checkbox" data-filter="retweets" checked> Include ${num(m.retweets)} retweets</label>` : ''}
 ${html}
 <nav class="pager">
   <span>${prev ? `<a href="/by-month/${prev.key}/">← ${monthLabel(prev.key)}</a>` : ''}</span>
@@ -217,23 +222,79 @@ ${SORT_SCRIPT}`,
   });
 }
 
+// Everything retweeted from someone else, newest first. These are on the site because
+// they're part of the record of what Malcolm was reading and boosting — but nothing
+// here counts towards his own numbers, and the reach column is the original tweet's.
+function retweetsPage(rts, accounts) {
+  const rows = [...rts].reverse().map(t => {
+    const text = t.rtBody.replace(/https?:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim();
+    return `<tr data-date="${esc(t.date)}" data-user="${esc(t.rtUser.toLowerCase())}" data-rts="${t.rts}">
+<td><a class="rt-user" href="https://x.com/${esc(t.rtUser)}">@${esc(t.rtUser)}</a></td>
+<td><a href="${esc(permalink(t))}">${esc(text.slice(0, 400))}</a></td>
+<td class="date"><a href="/by-month/${t.month}/">${esc(t.date)}</a></td>
+<td class="num">${num(t.rts)}</td>
+</tr>`;
+  }).join('\n');
+
+  const isSelf = u => u.toLowerCase() === USERNAME.toLowerCase();
+  const self = accounts.find(a => isSelf(a.user));
+  const top = accounts.slice(0, 40).map(a =>
+    `<li><a href="https://x.com/${esc(a.user)}">@${esc(a.user)}</a> <span class="n">${num(a.count)}${isSelf(a.user) ? ', himself' : ''}</span></li>`).join('');
+
+  return layout({
+    title: `Retweets — ${SITE_TITLE}`,
+    description: `${num(rts.length)} tweets @${USERNAME} has retweeted, from ${num(accounts.length)} accounts.`,
+    canonical: '/retweets/',
+    nav: 'retweets',
+    wide: true,
+    body: `<h1>Retweets</h1>
+<p class="lede">${num(rts.length)} tweets @${USERNAME} has passed on, from ${num(accounts.length)}
+accounts${self ? ` — including ${num(self.count)} re-shares of his own` : ''}. None of it counts
+towards his tweets, likes or retweets anywhere else on the site: a retweet's engagement belongs
+to whoever wrote the tweet, and re-sharing his own would count it twice. They still show up in
+place on the <a href="/by-month/">month pages</a>, where they can be toggled off.</p>
+<h2>Most retweeted</h2>
+<ul class="rt-top">${top}</ul>
+<h2>All of them</h2>
+<p class="search-row">
+  <input type="search" data-search="rt-table" data-count="rt-shown" placeholder="Filter by account or text…" aria-label="Filter retweets">
+  <span class="search-count"><span id="rt-shown"></span>newest first</span>
+</p>
+<div class="tbl-wrap"><table class="rows" id="rt-table">
+<thead><tr>
+  <th data-sort="user" data-type="text">Account</th>
+  <th>Tweet</th>
+  <th data-sort="date" data-type="text" class="sorted" data-dir="desc">Date</th>
+  <th data-sort="rts" title="Retweets on the original tweet — the author's reach, not Malcolm's">Reach</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+${SORT_SCRIPT}
+${SEARCH_SCRIPT}`,
+  });
+}
+
 function homePage({ archive, ms, threadList, topThreads }) {
   const totals = ms.reduce((a, m) => ({ likes: a.likes + m.likes, rts: a.rts + m.rts }), { likes: 0, rts: 0 });
   const first = archive.tweets[0], last = archive.tweets.at(-1);
+  const rtCount = archive.retweets.length;
   return layout({
     title: SITE_TITLE,
-    description: `An archive of @${USERNAME}'s ${num(archive.tweets.length)} tweets, browsable by month, by thread, and by what did best.`,
+    description: `An archive of @${USERNAME}'s ${num(archive.own.length)} tweets, browsable by month, by thread, and by what did best.`,
     canonical: '/',
     body: `<h1>${esc(SITE_TITLE)}</h1>
 <p class="lede">Everything <a href="https://x.com/${USERNAME}">@${USERNAME}</a> has tweeted between
 ${esc(first.date)} and ${esc(last.date)}, sourced from the
 <a href="https://www.community-archive.org/">Community Archive</a> and rebuilt as plain, readable pages.</p>
 <div class="stats">
-  <div><b>${num(archive.tweets.length)}</b> tweets</div>
+  <div><b>${num(archive.own.length)}</b> tweets</div>
   <div><b>${num(totals.likes)}</b> likes</div>
   <div><b>${num(totals.rts)}</b> retweets</div>
   <div><b>${num(threadList.length)}</b> threads</div>
 </div>
+<p class="note">Counts are of Malcolm's own tweets. The ${num(rtCount)} tweets he's
+<a href="/retweets/">retweeted</a> appear on the month pages but don't count towards his
+tweets, likes or retweets — that engagement belongs to whoever wrote them.</p>
 <h2><a href="/by-month/">By month</a></h2>
 <p>A ${ms.length}-month calendar, each month coloured by its retweets, likes, and volume.</p>
 <h2><a href="/threads/">Threads</a></h2>
@@ -241,7 +302,9 @@ ${esc(first.date)} and ${esc(last.date)}, sourced from the
 <ul>${topThreads.map(({ th, name }) =>
   `<li><a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a> <span style="color:var(--faint)">— ${th.len} tweets, ${num(th.likes)} likes</span></li>`).join('\n')}</ul>
 <h2><a href="/top/">Top tweets</a></h2>
-<p>The most-liked and most-retweeted, sortable several ways.</p>`,
+<p>The most-liked and most-retweeted, sortable several ways.</p>
+<h2><a href="/retweets/">Retweets</a></h2>
+<p>${num(rtCount)} tweets passed on, searchable and tallied by who wrote them.</p>`,
   });
 }
 
@@ -286,7 +349,8 @@ async function main() {
   await page('by-month', calendarPage(ms, color), { priority: 0.9 });
   await page('threads', threadsIndex(list), { priority: 0.9 });
 
-  const withTweets = ms.filter(m => m.count);
+  // A month with nothing but retweets still gets a page — the retweets are on it.
+  const withTweets = ms.filter(m => m.tweets.length);
   for (let i = 0; i < withTweets.length; i++) {
     await page(`by-month/${withTweets[i].key}`,
       monthPage(withTweets[i], withTweets[i - 1], withTweets[i + 1], chainOf, named),
@@ -301,8 +365,12 @@ async function main() {
   }
   console.log(`${list.length} thread pages`);
 
-  const top = [...archive.tweets].sort((a, b) => b.likes - a.likes).slice(0, 500);
-  await page('top', topPage(top, archive.tweets.length), { priority: 0.9 });
+  const top = [...archive.own].sort((a, b) => b.likes - a.likes).slice(0, 500);
+  await page('top', topPage(top, archive.own.length), { priority: 0.9 });
+
+  const accounts = retweetedAccounts(archive);
+  await page('retweets', retweetsPage(archive.retweets, accounts), { priority: 0.6 });
+  console.log(`${num(archive.retweets.length)} retweets from ${num(accounts.length)} accounts (uncounted)`);
 
   const lastmod = archive.fetchedAt.slice(0, 10);
   await writeFile(join(PUBLIC_DIR, 'sitemap.xml'),

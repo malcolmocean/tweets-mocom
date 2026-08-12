@@ -41,6 +41,7 @@ ${canonical ? `<meta property="og:url" content="${esc(SITE + canonical)}">` : ''
     <a href="/by-month/"${nav === 'by-month' ? ' class="on"' : ''}>By month</a>
     <a href="/threads/"${nav === 'threads' ? ' class="on"' : ''}>Threads</a>
     <a href="/top/"${nav === 'top' ? ' class="on"' : ''}>Top</a>
+    <a href="/retweets/"${nav === 'retweets' ? ' class="on"' : ''}>Retweets</a>
   </nav>
 </header>
 ${body}
@@ -59,13 +60,13 @@ ${body}
 
 // t.co shorteners are replaced with the expanded target the archive recorded;
 // a link whose expansion we don't have is dropped rather than left as a dead t.co.
-function linkify(tweet) {
+export function linkify(tweet, text = tweet.text) {
   const byShort = new Map((tweet.urls || []).map(u => [u.t, u]));
   let out = '';
   const re = /(https?:\/\/t\.co\/\w+)|(https?:\/\/[^\s<]+)|(^|\s)@(\w{1,15})|(^|\s)#(\w+)/g;
   let last = 0;
-  for (const m of tweet.text.matchAll(re)) {
-    out += esc(tweet.text.slice(last, m.index));
+  for (const m of text.matchAll(re)) {
+    out += esc(text.slice(last, m.index));
     last = m.index + m[0].length;
     if (m[1]) {
       const u = byShort.get(m[1]);
@@ -79,7 +80,7 @@ function linkify(tweet) {
       out += `${m[5]}<a href="https://x.com/hashtag/${esc(m[6])}">#${esc(m[6])}</a>`;
     }
   }
-  return out + esc(tweet.text.slice(last));
+  return out + esc(text.slice(last));
 }
 
 export const permalink = t => `https://x.com/${USERNAME}/status/${t.id}`;
@@ -88,7 +89,7 @@ const fmtDate = at => new Date(at).toLocaleDateString('en-US',
   { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 export function tweetHtml(t, { showDate = true } = {}) {
-  const cls = t.isReplyToOther ? 'tweet is-reply' : 'tweet';
+  const cls = 'tweet' + (t.isReplyToOther ? ' is-reply' : '') + (t.isRetweet ? ' is-retweet' : '');
   const media = t.media.map(m => m.type === 'photo'
     // Twitter's CDN has dropped some older media; a broken image removes its own figure.
     ? `<div class="media"><img src="${esc(m.url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></div>`
@@ -96,18 +97,27 @@ export function tweetHtml(t, { showDate = true } = {}) {
   const replyTo = t.isReplyToOther && t.replyToUsername
     ? `<p class="reply-to">Replying to <a href="https://x.com/${esc(t.replyToUsername)}">@${esc(t.replyToUsername)}</a></p>`
     : '';
+  // The "RT @them:" prefix becomes an attribution line, so the body below reads as
+  // what it is — someone else's tweet, passed on.
+  const rtHead = t.isRetweet
+    ? `<p class="rt-head">Retweeted <a href="https://x.com/${esc(t.rtUser)}">@${esc(t.rtUser)}</a></p>`
+    : '';
   // The quoted tweet usually also appears as an expanded t.co link in the text;
   // only add a separate line when it doesn't, so the same link isn't shown twice.
   const quoteLinked = t.quotes && (t.urls || []).some(u => u.x.includes(t.quotes));
   const quote = t.quotes && !quoteLinked
     ? `<p class="quotes">↩ <a href="https://x.com/i/status/${esc(t.quotes)}" rel="nofollow ugc">quoting a tweet</a></p>`
     : '';
+  // No like/RT counts on a retweet: the archive's numbers there are the original
+  // tweet's, and showing them next to your own would read as yours.
+  const stats = t.isRetweet ? '' :
+    `<span class="stat">${plural(t.likes, 'like')}</span>
+  <span class="stat">${plural(t.rts, 'RT')}</span>`;
   return `<article class="${cls}" id="t${esc(t.id)}">
-${replyTo}<p class="tweet-text">${linkify(t)}</p>${media}${quote}
+${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text)}</p>${media}${quote}
 <p class="tweet-meta">
   ${showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : `<a href="${esc(permalink(t))}">on X</a>`}
-  <span class="stat">${plural(t.likes, 'like')}</span>
-  <span class="stat">${plural(t.rts, 'RT')}</span>
+  ${stats}
 </p>
 </article>`;
 }
@@ -143,10 +153,37 @@ document.querySelectorAll('table.rows').forEach(function (table) {
 });
 </script>`;
 
+// Each checkbox owns one body class (hide-replies, hide-retweets); the rows stay in
+// the HTML either way, so crawlers and no-JS readers still see everything.
 export const FILTER_SCRIPT = `<script>
-document.querySelectorAll('input[data-filter="replies"]').forEach(function (box) {
-  var apply = function () { document.body.classList.toggle('hide-replies', !box.checked); };
+document.querySelectorAll('input[data-filter]').forEach(function (box) {
+  var cls = 'hide-' + box.dataset.filter;
+  var apply = function () { document.body.classList.toggle(cls, !box.checked); };
   box.addEventListener('change', apply);
   apply();
+});
+</script>`;
+
+// Substring search over table rows. The haystack is read off the rows themselves
+// rather than emitted as a data- attribute — on a 6k-row page that duplicated text
+// was more than half the bytes on the wire. Indexed once, lazily, on first keystroke.
+export const SEARCH_SCRIPT = `<script>
+document.querySelectorAll('input[data-search]').forEach(function (input) {
+  var rows = Array.prototype.slice.call(
+    document.getElementById(input.dataset.search).tBodies[0].rows);
+  var out = document.getElementById(input.dataset.count);
+  var hay = null;
+  input.value = '';
+  input.addEventListener('input', function () {
+    if (!hay) hay = rows.map(function (r) { return r.textContent.toLowerCase(); });
+    var q = input.value.trim().toLowerCase().replace(/^@/, '');
+    var shown = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var hit = !q || hay[i].indexOf(q) !== -1;
+      rows[i].hidden = !hit;
+      if (hit) shown++;
+    }
+    if (out) out.textContent = shown === rows.length ? '' : shown.toLocaleString('en-US') + ' matching · ';
+  });
 });
 </script>`;
