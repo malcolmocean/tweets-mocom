@@ -1,0 +1,20 @@
+{
+  "name": "tweets-mocom",
+  "version": "0.1.0",
+  "description": "Static archive site for @Malcolm_Ocean's tweets, sourced from community-archive.org",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "fetch": "node src/fetch.js",
+    "name-threads": "node src/name-threads.js",
+    "build": "node src/build.js",
+    "deploy": "wrangler deploy",
+    "refresh": "npm run fetch && npm run name-threads && npm run build && npm run deploy"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0"
+  }
+}

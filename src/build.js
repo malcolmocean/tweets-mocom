@@ -1,0 +1,319 @@
+// Generates the whole static site into public/. Pure function of data/ — safe to
+// re-run after every fetch; nothing is written by hand.
+import { mkdir, writeFile, readFile, rm, cp } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadArchive, assembleChains, chainToThread, worthSharing, months, MONTH_NAMES } from './model.js';
+import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT } from './render.js';
+import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES } from './config.js';
+
+const SRC = dirname(fileURLToPath(import.meta.url));
+const urls = [];
+
+async function page(path, html, { priority = 0.5 } = {}) {
+  const dir = join(PUBLIC_DIR, path);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), html);
+  urls.push({ loc: (path ? `/${path}/` : '/'), priority });
+}
+
+// --- month colour ----------------------------------------------------------
+
+// R = retweets, G = likes, B = tweet count, each log-scaled against the busiest
+// month in that dimension. Log rather than linear because monthly engagement
+// spans three orders of magnitude — linear would leave all but a few months black.
+function colorScale(ms) {
+  const max = k => Math.max(1, ...ms.map(m => m[k]));
+  const maxes = { rts: max('rts'), likes: max('likes'), count: max('count') };
+  const ch = (v, m) => Math.round(255 * (Math.log1p(v) / Math.log1p(m)) ** 0.85);
+  return m => {
+    const [r, g, b] = [ch(m.rts, maxes.rts), ch(m.likes, maxes.likes), ch(m.count, maxes.count)];
+    // Luminance decides label colour so the hover count stays legible on any cell.
+    return { css: `rgb(${r},${g},${b})`, light: (0.299 * r + 0.587 * g + 0.114 * b) > 140 };
+  };
+}
+
+// --- pages -----------------------------------------------------------------
+
+function calendarPage(ms, color) {
+  const years = [...new Set(ms.map(m => m.year))].sort((a, b) => b - a);
+  const byKey = new Map(ms.map(m => [m.key, m]));
+  const rows = years.map(y => {
+    const cells = MONTH_NAMES.map((_, i) => {
+      const m = byKey.get(`${y}-${String(i + 1).padStart(2, '0')}`);
+      if (!m || !m.count) return '<td><span class="cell empty"></span></td>';
+      const c = color(m);
+      return `<td><a class="cell" href="/by-month/${m.key}/" style="background:${c.css}"
+ title="${esc(monthLabel(m.key))} — ${num(m.count)} tweets, ${num(m.likes)} likes, ${num(m.rts)} RTs"
+ ><span style="color:${c.light ? '#000' : '#fff'}">${num(m.count)}</span></a></td>`;
+    }).join('');
+    return `<tr><td class="yr">${y}</td>${cells}</tr>`;
+  }).join('\n');
+
+  const totals = ms.reduce((a, m) => ({
+    count: a.count + m.count, likes: a.likes + m.likes, rts: a.rts + m.rts,
+  }), { count: 0, likes: 0, rts: 0 });
+
+  return layout({
+    title: `Tweets by month — ${SITE_TITLE}`,
+    description: `Every month of @${USERNAME}'s tweets since 2009, coloured by retweets, likes, and volume.`,
+    canonical: '/by-month/',
+    nav: 'by-month',
+    wide: true,
+    body: `<h1>By month</h1>
+<p class="lede">Every month since ${ms[0].year}. Each cell is coloured by how that month went:
+red for retweets, green for likes, blue for sheer volume — so a bright cyan month was busy
+and well-liked, and a dark one was quiet. Hover for the numbers.</p>
+<div class="stats">
+  <div><b>${num(totals.count)}</b> tweets</div>
+  <div><b>${num(totals.likes)}</b> likes</div>
+  <div><b>${num(totals.rts)}</b> retweets</div>
+  <div><b>${ms.length}</b> months</div>
+</div>
+<div class="tbl-wrap"><table class="cal">
+<thead><tr><th class="yr"></th>${MONTH_NAMES.map(m => `<th>${m}</th>`).join('')}</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+<p class="legend">
+  <span><span class="swatch" style="background:rgb(220,40,40)"></span><b>Red</b> retweets</span>
+  <span><span class="swatch" style="background:rgb(40,220,40)"></span><b>Green</b> likes</span>
+  <span><span class="swatch" style="background:rgb(60,90,240)"></span><b>Blue</b> tweets</span>
+  <span>each log-scaled against the biggest month.</span>
+</p>`,
+  });
+}
+
+function monthPage(m, prev, next, chainOf, named) {
+  const replies = m.tweets.filter(t => t.isReplyToOther).length;
+  let html = '';
+  let i = 0;
+  while (i < m.tweets.length) {
+    const t = m.tweets[i];
+    const chain = chainOf.get(t.id);
+    if (!chain) { html += tweetHtml(t); i++; continue; }
+    // Take the run of this chain's tweets that falls inside this month; a chain
+    // spanning a month boundary renders its tail under the later month.
+    const run = [];
+    while (i < m.tweets.length && chainOf.get(m.tweets[i].id) === chain) run.push(m.tweets[i++]);
+    const name = named.get(chain[0].id);
+    const partial = run.length < chain.length;
+    // Unnamed chains are often just a two-tweet reply exchange; the left rule
+    // already shows they belong together, so only label the ones with a page.
+    const tag = name
+      ? `<p class="thread-tag">Thread · <a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a>${partial ? ` · ${run.length} of ${chain.length} tweets` : ''}</p>`
+      : '';
+    html += `<div class="thread-block">
+${tag}${run.map(x => tweetHtml(x)).join('\n')}
+</div>`;
+  }
+
+  return layout({
+    title: `${monthLabel(m.key)} — ${SITE_TITLE}`,
+    description: `${num(m.count)} tweets by @${USERNAME} in ${monthLabel(m.key)}, with ${num(m.likes)} likes and ${num(m.rts)} retweets.`,
+    canonical: `/by-month/${m.key}/`,
+    nav: 'by-month',
+    body: `<p class="crumb"><a href="/by-month/">By month</a></p>
+<h1>${monthLabel(m.key)}</h1>
+<div class="stats">
+  <div><b>${num(m.count)}</b> tweets</div>
+  <div><b>${num(m.likes)}</b> likes</div>
+  <div><b>${num(m.rts)}</b> retweets</div>
+</div>
+${replies ? `<label class="filter"><input type="checkbox" data-filter="replies" checked> Include ${num(replies)} replies to other people</label>` : ''}
+${html}
+<nav class="pager">
+  <span>${prev ? `<a href="/by-month/${prev.key}/">← ${monthLabel(prev.key)}</a>` : ''}</span>
+  <span>${next ? `<a href="/by-month/${next.key}/">${monthLabel(next.key)} →</a>` : ''}</span>
+</nav>
+${FILTER_SCRIPT}`,
+  });
+}
+
+function threadPage(th, name, prev, next) {
+  const first = th.tweets[0];
+  const snippet = first.text.replace(/https?:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  return layout({
+    title: `${name.title} — ${SITE_TITLE}`,
+    description: snippet,
+    canonical: `/threads/${name.slug}/`,
+    nav: 'threads',
+    body: `<p class="crumb"><a href="/threads/">Threads</a></p>
+<h1>${esc(name.title)}</h1>
+<p class="lede">${th.len} tweets · <a href="/by-month/${th.month}/">${monthLabel(th.month)}</a> ·
+${num(th.likes)} likes · ${num(th.rts)} retweets ·
+<a href="${esc(permalink(first))}">read on X</a></p>
+${th.tweets.map((t, i) => tweetHtml(t, { showDate: i === 0 })).join('\n')}
+<nav class="pager">
+  <span>${prev ? `<a href="/threads/${esc(prev.slug)}/">← ${esc(prev.title)}</a>` : ''}</span>
+  <span>${next ? `<a href="/threads/${esc(next.slug)}/">${esc(next.title)} →</a>` : ''}</span>
+</nav>`,
+  });
+}
+
+function threadsIndex(list) {
+  const rows = list.map(({ th, name }) => `<tr data-date="${esc(th.date)}" data-len="${th.len}" data-likes="${th.likes}" data-rts="${th.rts}" data-title="${esc(name.title)}">
+<td><a class="title" href="/threads/${esc(name.slug)}/">${esc(name.title)}</a></td>
+<td class="date">${esc(th.date)}</td>
+<td class="num">${th.len}</td>
+<td class="num">${num(th.likes)}</td>
+<td class="num">${num(th.rts)}</td>
+</tr>`).join('\n');
+
+  return layout({
+    title: `Threads — ${SITE_TITLE}`,
+    description: `${num(list.length)} threads by @${USERNAME}, sortable by date, length, likes, and retweets.`,
+    canonical: '/threads/',
+    nav: 'threads',
+    body: `<h1>Threads</h1>
+<p class="lede">${num(list.length)} threads worth sharing — every self-reply chain that runs
+${THREAD_MIN_TWEETS}+ tweets long or picked up ${THREAD_MIN_LIKES}+ likes. Click a column to re-sort.</p>
+<div class="tbl-wrap"><table class="rows">
+<thead><tr>
+  <th data-sort="title" data-type="text">Topic</th>
+  <th data-sort="date" data-type="text" class="sorted" data-dir="desc">Date</th>
+  <th data-sort="len">Tweets</th>
+  <th data-sort="likes">Likes</th>
+  <th data-sort="rts">RTs</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+${SORT_SCRIPT}`,
+  });
+}
+
+function topPage(tweets, count) {
+  const rows = tweets.map(t => {
+    const text = t.text.replace(/https?:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim();
+    return `<tr data-date="${esc(t.date)}" data-likes="${t.likes}" data-rts="${t.rts}" data-ratio="${t.likes ? (t.rts / t.likes).toFixed(4) : 0}">
+<td><a href="${esc(permalink(t))}">${esc(text.slice(0, 400))}</a></td>
+<td class="date"><a href="/by-month/${t.month}/">${esc(t.date)}</a></td>
+<td class="num">${num(t.likes)}</td>
+<td class="num">${num(t.rts)}</td>
+<td class="num">${t.likes ? (100 * t.rts / t.likes).toFixed(0) + '%' : '—'}</td>
+</tr>`;
+  }).join('\n');
+
+  return layout({
+    title: `Top tweets — ${SITE_TITLE}`,
+    description: `The most-liked and most-retweeted of @${USERNAME}'s ${num(count)} tweets.`,
+    canonical: '/top/',
+    nav: 'top',
+    wide: true,
+    body: `<h1>Top tweets</h1>
+<p class="lede">The ${num(tweets.length)} most-liked tweets out of ${num(count)}.
+Sort by retweets, date, or RT-to-like ratio — the last one surfaces the tweets people
+passed on rather than just enjoyed.</p>
+<div class="tbl-wrap"><table class="rows">
+<thead><tr>
+  <th>Tweet</th>
+  <th data-sort="date" data-type="text">Date</th>
+  <th data-sort="likes" class="sorted" data-dir="desc">Likes</th>
+  <th data-sort="rts">RTs</th>
+  <th data-sort="ratio" title="Retweets as a share of likes">RT/like</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+${SORT_SCRIPT}`,
+  });
+}
+
+function homePage({ archive, ms, threadList, topThreads }) {
+  const totals = ms.reduce((a, m) => ({ likes: a.likes + m.likes, rts: a.rts + m.rts }), { likes: 0, rts: 0 });
+  const first = archive.tweets[0], last = archive.tweets.at(-1);
+  return layout({
+    title: SITE_TITLE,
+    description: `An archive of @${USERNAME}'s ${num(archive.tweets.length)} tweets, browsable by month, by thread, and by what did best.`,
+    canonical: '/',
+    body: `<h1>${esc(SITE_TITLE)}</h1>
+<p class="lede">Everything <a href="https://x.com/${USERNAME}">@${USERNAME}</a> has tweeted between
+${esc(first.date)} and ${esc(last.date)}, sourced from the
+<a href="https://www.community-archive.org/">Community Archive</a> and rebuilt as plain, readable pages.</p>
+<div class="stats">
+  <div><b>${num(archive.tweets.length)}</b> tweets</div>
+  <div><b>${num(totals.likes)}</b> likes</div>
+  <div><b>${num(totals.rts)}</b> retweets</div>
+  <div><b>${num(threadList.length)}</b> threads</div>
+</div>
+<h2><a href="/by-month/">By month</a></h2>
+<p>A ${ms.length}-month calendar, each month coloured by its retweets, likes, and volume.</p>
+<h2><a href="/threads/">Threads</a></h2>
+<p>${num(threadList.length)} threads worth sharing, each on its own page, sortable by date, length, or reception.</p>
+<ul>${topThreads.map(({ th, name }) =>
+  `<li><a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a> <span style="color:var(--faint)">— ${th.len} tweets, ${num(th.likes)} likes</span></li>`).join('\n')}</ul>
+<h2><a href="/top/">Top tweets</a></h2>
+<p>The most-liked and most-retweeted, sortable several ways.</p>`,
+  });
+}
+
+// --- driver ----------------------------------------------------------------
+
+async function main() {
+  const archive = await loadArchive();
+  const names = await readFile(THREAD_NAMES_JSON, 'utf8').then(JSON.parse).catch(() => ({}));
+
+  const chains = assembleChains(archive);
+  const chainOf = new Map();
+  for (const c of chains) for (const t of c) chainOf.set(t.id, c);
+
+  const allThreads = chains.map(chainToThread);
+  const shareable = allThreads.filter(worthSharing).sort((a, b) => (a.at < b.at ? 1 : -1));
+
+  // Slugs are the URL, so they must be unique and stable; a collision takes a
+  // numeric suffix in date order (newest first), which is the iteration order here.
+  const used = new Set();
+  const named = new Map();
+  const list = [];
+  for (const th of shareable) {
+    const raw = names[th.id];
+    if (!raw) continue; // not yet named — name-threads.js will pick it up next run
+    let slug = raw.slug;
+    for (let n = 2; used.has(slug); n++) slug = `${raw.slug}-${n}`;
+    used.add(slug);
+    const name = { slug, title: raw.title };
+    named.set(th.id, name);
+    list.push({ th, name });
+  }
+
+  const ms = months(archive);
+  const color = colorScale(ms);
+
+  await rm(PUBLIC_DIR, { recursive: true, force: true });
+  await mkdir(PUBLIC_DIR, { recursive: true });
+  await cp(join(SRC, 'assets/style.css'), join(PUBLIC_DIR, 'style.css'));
+
+  const topThreads = [...list].sort((a, b) => b.th.likes - a.th.likes).slice(0, 6);
+  await page('', homePage({ archive, ms, threadList: list, topThreads }), { priority: 1.0 });
+  await page('by-month', calendarPage(ms, color), { priority: 0.9 });
+  await page('threads', threadsIndex(list), { priority: 0.9 });
+
+  const withTweets = ms.filter(m => m.count);
+  for (let i = 0; i < withTweets.length; i++) {
+    await page(`by-month/${withTweets[i].key}`,
+      monthPage(withTweets[i], withTweets[i - 1], withTweets[i + 1], chainOf, named),
+      { priority: 0.7 });
+  }
+  console.log(`${withTweets.length} month pages`);
+
+  for (let i = 0; i < list.length; i++) {
+    await page(`threads/${list[i].name.slug}`,
+      threadPage(list[i].th, list[i].name, list[i + 1]?.name, list[i - 1]?.name),
+      { priority: 0.8 });
+  }
+  console.log(`${list.length} thread pages`);
+
+  const top = [...archive.tweets].sort((a, b) => b.likes - a.likes).slice(0, 500);
+  await page('top', topPage(top, archive.tweets.length), { priority: 0.9 });
+
+  const lastmod = archive.fetchedAt.slice(0, 10);
+  await writeFile(join(PUBLIC_DIR, 'sitemap.xml'),
+    `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(u => `<url><loc>${SITE}${u.loc}</loc><lastmod>${lastmod}</lastmod><priority>${u.priority}</priority></url>`).join('\n')}
+</urlset>
+`);
+  await writeFile(join(PUBLIC_DIR, 'robots.txt'),
+    `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
+  console.log(`${urls.length} pages total`);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

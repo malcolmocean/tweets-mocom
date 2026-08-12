@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+public/
+data/tweets.json

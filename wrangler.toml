@@ -1,0 +1,9 @@
+name = "tweets-mocom"
+compatibility_date = "2026-08-11"
+
+[assets]
+directory = "./public"
+
+[[routes]]
+pattern = "tweets.malcolmocean.com"
+custom_domain = true
