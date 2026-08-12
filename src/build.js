@@ -3,9 +3,10 @@
 import { mkdir, writeFile, readFile, rm, cp } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadArchive, assembleChains, chainToThread, worthSharing, months, retweetedAccounts, MONTH_NAMES } from './model.js';
+import { loadArchive, assembleChains, chainToThread, worthSharing, months, retweetedAccounts, topReplies, MONTH_NAMES } from './model.js';
+import { loadEmbeds, embedContext } from './embeds.js';
 import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT, SEARCH_SCRIPT } from './render.js';
-import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES } from './config.js';
+import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, TOP_TWEETS, TOP_REPLIES } from './config.js';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 const urls = [];
@@ -86,14 +87,14 @@ Tweets he <a href="/retweets/">retweeted</a> show up on the month pages but aren
   });
 }
 
-function monthPage(m, prev, next, chainOf, named) {
+function monthPage(m, prev, next, chainOf, named, ctx) {
   const replies = m.tweets.filter(t => t.isReplyToOther).length;
   let html = '';
   let i = 0;
   while (i < m.tweets.length) {
     const t = m.tweets[i];
     const chain = chainOf.get(t.id);
-    if (!chain) { html += tweetHtml(t); i++; continue; }
+    if (!chain) { html += tweetHtml(t, { ctx }); i++; continue; }
     // Take the run of this chain's tweets that falls inside this month; a chain
     // spanning a month boundary renders its tail under the later month.
     const run = [];
@@ -106,7 +107,7 @@ function monthPage(m, prev, next, chainOf, named) {
       ? `<p class="thread-tag">Thread · <a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a>${partial ? ` · ${run.length} of ${chain.length} tweets` : ''}</p>`
       : '';
     html += `<div class="thread-block">
-${tag}${run.map(x => tweetHtml(x)).join('\n')}
+${tag}${run.map(x => tweetHtml(x, { ctx })).join('\n')}
 </div>`;
   }
 
@@ -134,7 +135,7 @@ ${FILTER_SCRIPT}`,
   });
 }
 
-function threadPage(th, name, prev, next) {
+function threadPage(th, name, prev, next, ctx) {
   const first = th.tweets[0];
   const snippet = first.text.replace(/https?:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
   return layout({
@@ -147,7 +148,7 @@ function threadPage(th, name, prev, next) {
 <p class="lede">${th.len} tweets · <a href="/by-month/${th.month}/">${monthLabel(th.month)}</a> ·
 ${num(th.likes)} likes · ${num(th.rts)} retweets ·
 <a href="${esc(permalink(first))}">read on X</a></p>
-${th.tweets.map((t, i) => tweetHtml(t, { showDate: i === 0 })).join('\n')}
+${th.tweets.map((t, i) => tweetHtml(t, { showDate: i === 0, ctx })).join('\n')}
 <nav class="pager">
   <span>${prev ? `<a href="/threads/${esc(prev.slug)}/">← ${esc(prev.title)}</a>` : ''}</span>
   <span>${next ? `<a href="/threads/${esc(next.slug)}/">${esc(next.title)} →</a>` : ''}</span>
@@ -170,8 +171,10 @@ function threadsIndex(list) {
     canonical: '/threads/',
     nav: 'threads',
     body: `<h1>Threads</h1>
-<p class="lede">${num(list.length)} threads worth sharing — every self-reply chain that runs
-${THREAD_MIN_TWEETS}+ tweets long or picked up ${THREAD_MIN_LIKES}+ likes. Click a column to re-sort.</p>
+<p class="lede">${num(list.length)} threads worth sharing — every self-reply chain of at least
+${THREAD_MIN_LEN} tweets that either runs ${THREAD_MIN_TWEETS}+ tweets long or picked up
+${THREAD_MIN_LIKES}+ likes. Shorter chains are a tweet with an afterthought, and live on
+<a href="/top/">Top tweets</a> instead. Click a column to re-sort.</p>
 <div class="tbl-wrap"><table class="rows">
 <thead><tr>
   <th data-sort="title" data-type="text">Topic</th>
@@ -219,6 +222,25 @@ passed on rather than just enjoyed.</p>
 <tbody>${rows}</tbody>
 </table></div>
 ${SORT_SCRIPT}`,
+  });
+}
+
+// Malcolm's best-received replies to other people. A reply is the one kind of tweet
+// here that was written into someone else's conversation, so each is shown under the
+// tweet it answers — the halves are only worth reading together. Where that tweet is
+// gone (deleted, or an account since locked) the reply stands alone with a link.
+function repliesPage(list, total, ctx) {
+  const body = list.map(t => tweetHtml(t, { ctx })).join('\n');
+  return layout({
+    title: `Top replies — ${SITE_TITLE}`,
+    description: `The best-received of the ${num(total)} replies @${USERNAME} has written to other people, each under the tweet it answers.`,
+    canonical: '/replies/',
+    nav: 'replies',
+    body: `<h1>Top replies</h1>
+<p class="lede">The ${num(list.length)} most-liked of @${USERNAME}'s ${num(total)} replies to other
+people. A reply is half a conversation, so each one sits under the tweet it answers —
+pulled from Twitter, and missing where that tweet has since been deleted.</p>
+${body}`,
   });
 }
 
@@ -274,7 +296,7 @@ ${SEARCH_SCRIPT}`,
   });
 }
 
-function homePage({ archive, ms, threadList, topThreads }) {
+function homePage({ archive, ms, threadList, topThreads, replyCount }) {
   const totals = ms.reduce((a, m) => ({ likes: a.likes + m.likes, rts: a.rts + m.rts }), { likes: 0, rts: 0 });
   const first = archive.tweets[0], last = archive.tweets.at(-1);
   const rtCount = archive.retweets.length;
@@ -303,6 +325,9 @@ tweets, likes or retweets — that engagement belongs to whoever wrote them.</p>
   `<li><a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a> <span style="color:var(--faint)">— ${th.len} tweets, ${num(th.likes)} likes</span></li>`).join('\n')}</ul>
 <h2><a href="/top/">Top tweets</a></h2>
 <p>The most-liked and most-retweeted, sortable several ways.</p>
+<h2><a href="/replies/">Top replies</a></h2>
+<p>The best-received of the ${num(replyCount)} replies he's written to other people, each shown
+under the tweet it answers.</p>
 <h2><a href="/retweets/">Retweets</a></h2>
 <p>${num(rtCount)} tweets passed on, searchable and tallied by who wrote them.</p>`,
   });
@@ -313,6 +338,11 @@ tweets, likes or retweets — that engagement belongs to whoever wrote them.</p>
 async function main() {
   const archive = await loadArchive();
   const names = await readFile(THREAD_NAMES_JSON, 'utf8').then(JSON.parse).catch(() => ({}));
+  // Quoted and replied-to tweets, fetched by fetch-embeds.js. Absent (or absent for
+  // a given tweet) the pages still build — those tweets just get a link instead of
+  // the thing they're answering.
+  const embeds = await loadEmbeds();
+  const ctx = embedContext(archive, embeds);
 
   const chains = assembleChains(archive);
   const chainOf = new Map();
@@ -345,7 +375,8 @@ async function main() {
   await cp(join(SRC, 'assets/style.css'), join(PUBLIC_DIR, 'style.css'));
 
   const topThreads = [...list].sort((a, b) => b.th.likes - a.th.likes).slice(0, 6);
-  await page('', homePage({ archive, ms, threadList: list, topThreads }), { priority: 1.0 });
+  const replyCount = archive.own.filter(t => t.isReplyToOther).length;
+  await page('', homePage({ archive, ms, threadList: list, topThreads, replyCount }), { priority: 1.0 });
   await page('by-month', calendarPage(ms, color), { priority: 0.9 });
   await page('threads', threadsIndex(list), { priority: 0.9 });
 
@@ -353,20 +384,25 @@ async function main() {
   const withTweets = ms.filter(m => m.tweets.length);
   for (let i = 0; i < withTweets.length; i++) {
     await page(`by-month/${withTweets[i].key}`,
-      monthPage(withTweets[i], withTweets[i - 1], withTweets[i + 1], chainOf, named),
+      monthPage(withTweets[i], withTweets[i - 1], withTweets[i + 1], chainOf, named, ctx),
       { priority: 0.7 });
   }
   console.log(`${withTweets.length} month pages`);
 
   for (let i = 0; i < list.length; i++) {
     await page(`threads/${list[i].name.slug}`,
-      threadPage(list[i].th, list[i].name, list[i + 1]?.name, list[i - 1]?.name),
+      threadPage(list[i].th, list[i].name, list[i + 1]?.name, list[i - 1]?.name, ctx),
       { priority: 0.8 });
   }
   console.log(`${list.length} thread pages`);
 
-  const top = [...archive.own].sort((a, b) => b.likes - a.likes).slice(0, 500);
+  const top = [...archive.own].sort((a, b) => b.likes - a.likes).slice(0, TOP_TWEETS);
   await page('top', topPage(top, archive.own.length), { priority: 0.9 });
+
+  const replies = topReplies(archive, TOP_REPLIES);
+  await page('replies', repliesPage(replies, replyCount, ctx), { priority: 0.8 });
+  const withParent = replies.filter(t => ctx.embed(t.replyTo)).length;
+  console.log(`${replies.length} top replies of ${num(replyCount)} (${withParent} with the tweet they answer)`);
 
   const accounts = retweetedAccounts(archive);
   await page('retweets', retweetsPage(archive.retweets, accounts), { priority: 0.6 });

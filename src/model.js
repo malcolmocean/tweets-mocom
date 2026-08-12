@@ -1,12 +1,12 @@
 // Turns the raw archive into the objects the site is made of: tweets, threads, months.
 // Pure data — no HTML. Both build.js and name-threads.js consume this.
 import { readFile } from 'node:fs/promises';
-import { TWEETS_JSON, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, CHAIN_MIN_TWEETS } from './config.js';
+import { TWEETS_JSON, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, CHAIN_MIN_TWEETS } from './config.js';
 
 // Twitter HTML-escapes &, < and > inside full_text, and the archive stores it that
 // way. Decode once on load so the text is plain and every renderer can escape it
 // itself — otherwise "&" reaches the page as "&amp;".
-const decodeEntities = s => s
+export const decodeEntities = s => s
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
   .replace(/&amp;/g, '&');
@@ -112,12 +112,26 @@ export function chainToThread(chain) {
   };
 }
 
+// Long enough to be a thread at all, and then either long or well-liked. The floor
+// is the load-bearing half: a two-tweet chain that picked up 200 likes is one good
+// tweet plus a footnote, and it reads better on /top/ than behind a thread title.
 export function worthSharing(thread) {
-  return thread.len >= THREAD_MIN_TWEETS || thread.likes >= THREAD_MIN_LIKES;
+  return thread.len >= THREAD_MIN_LEN &&
+    (thread.len >= THREAD_MIN_TWEETS || thread.likes >= THREAD_MIN_LIKES);
 }
 
 export function threads(archive) {
   return assembleChains(archive).map(chainToThread);
+}
+
+// Replies to other people, best-received first. A reply is written into someone
+// else's conversation, so it's the one kind of tweet here that can't be read alone —
+// which is why /replies/ shows each one under the tweet it answers.
+export function topReplies(archive, n) {
+  return archive.own
+    .filter(t => t.isReplyToOther)
+    .sort((a, b) => b.likes - a.likes || (a.at < b.at ? 1 : -1))
+    .slice(0, n);
 }
 
 // Month buckets, every month between the first and last tweet (gaps included as zeroes

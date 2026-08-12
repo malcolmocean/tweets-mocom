@@ -41,6 +41,7 @@ ${canonical ? `<meta property="og:url" content="${esc(SITE + canonical)}">` : ''
     <a href="/by-month/"${nav === 'by-month' ? ' class="on"' : ''}>By month</a>
     <a href="/threads/"${nav === 'threads' ? ' class="on"' : ''}>Threads</a>
     <a href="/top/"${nav === 'top' ? ' class="on"' : ''}>Top</a>
+    <a href="/replies/"${nav === 'replies' ? ' class="on"' : ''}>Replies</a>
     <a href="/retweets/"${nav === 'retweets' ? ' class="on"' : ''}>Retweets</a>
   </nav>
 </header>
@@ -60,7 +61,9 @@ ${body}
 
 // t.co shorteners are replaced with the expanded target the archive recorded;
 // a link whose expansion we don't have is dropped rather than left as a dead t.co.
-export function linkify(tweet, text = tweet.text) {
+// `omit(url)` drops links we're rendering as a card instead — the quoted tweet's
+// URL, which Twitter itself swallows into the embed rather than showing twice.
+export function linkify(tweet, text = tweet.text, { omit = null } = {}) {
   const byShort = new Map((tweet.urls || []).map(u => [u.t, u]));
   let out = '';
   const re = /(https?:\/\/t\.co\/\w+)|(https?:\/\/[^\s<]+)|(^|\s)@(\w{1,15})|(^|\s)#(\w+)/g;
@@ -71,8 +74,10 @@ export function linkify(tweet, text = tweet.text) {
     if (m[1]) {
       const u = byShort.get(m[1]);
       if (!u) continue; // media/self link with no expansion — the image renders below
+      if (omit?.(u.x)) continue;
       out += `<a href="${esc(u.x)}" rel="nofollow ugc">${esc(u.d || u.x)}</a>`;
     } else if (m[2]) {
+      if (omit?.(m[2])) continue;
       out += `<a href="${esc(m[2])}" rel="nofollow ugc">${esc(m[2])}</a>`;
     } else if (m[4]) {
       out += `${m[3]}<a href="https://x.com/${esc(m[4])}">@${esc(m[4])}</a>`;
@@ -88,33 +93,83 @@ export const permalink = t => `https://x.com/${USERNAME}/status/${t.id}`;
 const fmtDate = at => new Date(at).toLocaleDateString('en-US',
   { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
-export function tweetHtml(t, { showDate = true } = {}) {
+// A card is context, not the main event: a very long tweet (Malcolm's own can run to
+// thousands of characters) is cut at a word boundary and finished by clicking through.
+// Tweets fetched from the syndication API arrive at ~280 chars and are never cut.
+const EMBED_MAX_CHARS = 600;
+function embedText(text) {
+  if (text.length <= EMBED_MAX_CHARS) return { text, cut: false };
+  const head = text.slice(0, EMBED_MAX_CHARS);
+  const space = head.lastIndexOf(' ');
+  return { text: head.slice(0, space > EMBED_MAX_CHARS / 2 ? space : EMBED_MAX_CHARS).trimEnd() + '…', cut: true };
+}
+
+// A tweet by someone else that this archive points at — quoted, or replied to —
+// rendered in place so the tweet around it makes sense on its own. The text is the
+// other person's, so the card says whose it is and links to the original; when it's
+// one of Malcolm's own, the link stays on this site.
+export function embedHtml(e, { label = '' } = {}) {
+  const body = embedText(e.text);
+  const extra = [];
+  // The first photo is shown; any others are counted, as is video (never shown —
+  // there's no still to hot-link, only a player).
+  const rest = e.photos - (e.photo ? 1 : 0);
+  if (rest > 0) extra.push(`${num(rest)} more photo${rest === 1 ? '' : 's'}`);
+  if (e.video) extra.push('video');
+  const when = e.at
+    ? ` · <a class="embed-when" href="${esc(e.href)}"><time datetime="${esc(e.at)}">${esc(fmtDate(e.at))}</time></a>`
+    : '';
+  return `<blockquote class="embed">
+<p class="embed-head">${label ? `${esc(label)} ` : ''}<a class="embed-who" href="https://x.com/${esc(e.user)}"><b>${esc(e.name || e.user)}</b> @${esc(e.user)}</a>${when}</p>
+<p class="embed-text">${linkify(e, body.text)}</p>${body.cut
+    ? `\n<p class="embed-extra"><a href="${esc(e.href)}">read the whole tweet →</a></p>` : ''}${e.photo
+    ? `\n<div class="media"><img src="${esc(e.photo)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></div>`
+    : ''}${extra.length ? `\n<p class="embed-extra">[${esc(extra.join(' + '))}]</p>` : ''}${e.truncated
+    ? `\n<p class="embed-extra">[long tweet — <a href="${esc(e.href)}">read the rest on X</a>]</p>` : ''}${e.quoted
+    ? `\n<p class="embed-quoted">quoting <a href="https://x.com/${esc(e.quoted.user)}">@${esc(e.quoted.user)}</a>: ${esc(e.quoted.text.slice(0, 280))}</p>` : ''}
+</blockquote>`;
+}
+
+// `ctx.embed(id)` supplies the card data for a referenced tweet, if we have it —
+// see embedContext() in embeds.js. Without it (or without a cached embed) the tweet
+// renders as it always did: a line naming who was being answered or quoted.
+export function tweetHtml(t, { showDate = true, ctx = null } = {}) {
   const cls = 'tweet' + (t.isReplyToOther ? ' is-reply' : '') + (t.isRetweet ? ' is-retweet' : '');
   const media = t.media.map(m => m.type === 'photo'
     // Twitter's CDN has dropped some older media; a broken image removes its own figure.
     ? `<div class="media"><img src="${esc(m.url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></div>`
     : `<div class="media"><a href="${esc(permalink(t))}">[${esc(m.type)}]</a></div>`).join('');
-  const replyTo = t.isReplyToOther && t.replyToUsername
-    ? `<p class="reply-to">Replying to <a href="https://x.com/${esc(t.replyToUsername)}">@${esc(t.replyToUsername)}</a></p>`
-    : '';
+  const parent = t.isReplyToOther ? ctx?.embed(t.replyTo) : null;
+  const replyTo = parent
+    ? embedHtml(parent, { label: 'Replying to' })
+    : t.isReplyToOther && t.replyToUsername
+      // The tweet being answered is one URL away even when we couldn't fetch it.
+      ? `<p class="reply-to">Replying to <a href="https://x.com/${esc(t.replyToUsername)}/status/${esc(t.replyTo)}">@${esc(t.replyToUsername)}</a></p>`
+      : '';
   // The "RT @them:" prefix becomes an attribution line, so the body below reads as
   // what it is — someone else's tweet, passed on.
   const rtHead = t.isRetweet
     ? `<p class="rt-head">Retweeted <a href="https://x.com/${esc(t.rtUser)}">@${esc(t.rtUser)}</a></p>`
     : '';
-  // The quoted tweet usually also appears as an expanded t.co link in the text;
-  // only add a separate line when it doesn't, so the same link isn't shown twice.
+  // A quote-tweet: the card carries the quoted tweet, so the link to it comes out of
+  // the text — Twitter swallows it into the embed too, rather than showing it twice.
+  const quoted = t.quotes ? ctx?.embed(t.quotes) : null;
+  const omit = quoted ? url => url.includes(t.quotes) : null;
+  // Without the card, the quoted tweet is a line — but only when the text doesn't
+  // already carry the link, so the same URL isn't shown twice.
   const quoteLinked = t.quotes && (t.urls || []).some(u => u.x.includes(t.quotes));
-  const quote = t.quotes && !quoteLinked
-    ? `<p class="quotes">↩ <a href="https://x.com/i/status/${esc(t.quotes)}" rel="nofollow ugc">quoting a tweet</a></p>`
-    : '';
+  const quote = quoted
+    ? embedHtml(quoted)
+    : t.quotes && !quoteLinked
+      ? `<p class="quotes">↩ <a href="https://x.com/i/status/${esc(t.quotes)}" rel="nofollow ugc">quoting a tweet</a></p>`
+      : '';
   // No like/RT counts on a retweet: the archive's numbers there are the original
   // tweet's, and showing them next to your own would read as yours.
   const stats = t.isRetweet ? '' :
     `<span class="stat">${plural(t.likes, 'like')}</span>
   <span class="stat">${plural(t.rts, 'RT')}</span>`;
   return `<article class="${cls}" id="t${esc(t.id)}">
-${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text)}</p>${media}${quote}
+${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text, { omit })}</p>${media}${quote}
 <p class="tweet-meta">
   ${showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : `<a href="${esc(permalink(t))}">on X</a>`}
   ${stats}

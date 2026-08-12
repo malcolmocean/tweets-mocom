@@ -15,12 +15,16 @@ Live: **https://tweets.malcolmocean.com**
 | `/threads/` | All share-worthy threads, sortable by topic, date, length, likes, RTs |
 | `/threads/<topic>/` | One thread per page |
 | `/top/` | 500 most-liked tweets, sortable by likes, RTs, date, or RT/like ratio |
+| `/replies/` | 250 most-liked replies to other people, each under the tweet it answers |
 | `/retweets/` | Every retweet, searchable, plus who gets retweeted most |
 
 Plus `/sitemap.xml` and `/robots.txt` — the archive is meant to be crawled.
 
-**"Worth sharing"** = a self-reply chain that is **6+ tweets long** OR has **30+ total likes**.
-Currently 965 of 5,217 chains. Tune in `src/config.js`.
+**"Worth sharing"** = a self-reply chain of **4+ tweets** that is either **6+ tweets long** OR has
+**30+ total likes**. Currently 648 of 5,217 chains. Tune in `src/config.js`.
+
+The 4-tweet floor is the load-bearing one: a tweet with an afterthought or two isn't a thread
+however well it did, and the well-liked short ones are already on `/top/`.
 
 ## Retweets are shown but never counted
 
@@ -40,16 +44,33 @@ Detection is `^RT @user[: ]` — anchored, so an old-style manual retweet with a
 @Malcolm_Ocean`, ~350 of them) are retweets too: the tweet they point at is already in the
 archive with its own numbers, so counting the retweet would double it.
 
+## Quoted and replied-to tweets
+
+The community archive holds Malcolm's tweets and nobody else's, so a quote-tweet arrives as a
+bare id and a reply as a bare `reply_to_tweet_id` — which is exactly the half of the exchange
+that makes his half readable. `fetch-embeds` pulls those ~26k tweets from Twitter's
+**syndication API** (`cdn.syndication.twimg.com/tweet-result`, the unauthenticated JSON backend
+behind embedded tweets — same method `~/dev/xyxz` uses) into `data/embeds.json`, and they render
+as a card: above a reply, below a quote-tweet.
+
+It's an unofficial endpoint, so everything degrades: no cache, no card, and the tweet renders
+with a link the way it used to. About 14% of them are gone (deleted, locked, suspended) and get
+cached as `null` so later runs don't ask again — `--retry-gone` asks anyway. A network or
+rate-limit error caches nothing, so the next run retries it; 40 failures in a row stops the run
+and keeps what it got. Quote-tweets of his own tweets need no fetch at all: the tweet is already
+in the archive, and its card links to this site rather than to X.
+
 ## Refreshing
 
 ```sh
-npm run refresh     # fetch → name-threads → build → deploy
+npm run refresh     # fetch → fetch-embeds → name-threads → build → deploy
 ```
 
 Or each step alone:
 
 ```sh
 npm run fetch         # community-archive → data/tweets.json  (~60 requests, ~2 min)
+npm run fetch-embeds  # quoted + replied-to tweets → data/embeds.json  (incremental; first run ~1h)
 npm run name-threads  # names NEW threads only → data/thread-names.json  (needs ANTHROPIC_API_KEY)
 npm run build         # data/ → public/  (~2s, wipes and regenerates public/)
 npm run deploy        # wrangler deploy
@@ -64,6 +85,10 @@ CI job). Two things make repeat runs cheap and stable:
 - **`name-threads` is incremental.** Existing names in `data/thread-names.json` are kept, so a
   refresh only pays the LLM for threads that appeared since last time. `--all` re-names
   everything; `--limit N` caps a run.
+- **`fetch-embeds` is incremental too**, and for a harder reason: it's ~26k requests to an
+  endpoint that owes us nothing. Only tweets missing from `data/embeds.json` are fetched, so a
+  routine refresh costs a few hundred requests. Worth keeping (and backing up) even though it's
+  gitignored: tweets that get deleted between refreshes can't be fetched again.
 
 Thread slugs are the URL, so they're stable as long as `thread-names.json` is kept — don't
 delete it. Collisions get a numeric suffix (`-2`), newest thread keeps the bare slug.
@@ -75,7 +100,9 @@ src/
   config.js       account, site constants, thread thresholds
   archive.js      community-archive REST client (paging, retries)
   fetch.js        → data/tweets.json
-  model.js        archive → own tweets / retweets / self-reply chains / month buckets
+  model.js        archive → own tweets / retweets / self-reply chains / month buckets / replies
+  embeds.js       syndication-API client + cache; embed cards for quoted/replied-to tweets
+  fetch-embeds.js → data/embeds.json (incremental, resumable)
   name-threads.js → data/thread-names.json (Claude API, batched + concurrent)
   render.js       page shell, tweet markup, client-side sort/filter scripts
   build.js        → public/
@@ -92,6 +119,7 @@ single self-contained file that works without JS.
 - Deploys to Malcolm's **personal** Cloudflare account (malcolm.m.ocean@gmail.com). This machine
   may also hold company Cloudflare credentials — check `wrangler whoami` before deploying.
 - `ANTHROPIC_API_KEY` is only needed for `name-threads`.
-- Media is hot-linked from `pbs.twimg.com`; images Twitter has dropped remove themselves client-side.
+- Media is hot-linked from `pbs.twimg.com`; images Twitter has dropped remove themselves
+  client-side. Embed cards do the same with the quoted tweet's first image.
 - Covers 2009-06-20 → present: 47k own tweets plus 6.2k retweets, which are shown but not counted.
 - `/retweets/` is one big page (~2.6 MB, ~530 KB gzipped) so that search and sort span all of it.

@@ -6,10 +6,11 @@
   "private": true,
   "scripts": {
     "fetch": "node src/fetch.js",
+    "fetch-embeds": "node src/fetch-embeds.js",
     "name-threads": "node src/name-threads.js",
     "build": "node src/build.js",
     "deploy": "wrangler deploy",
-    "refresh": "npm run fetch && npm run name-threads && npm run build && npm run deploy"
+    "refresh": "npm run fetch && npm run fetch-embeds && npm run name-threads && npm run build && npm run deploy"
   },
   "engines": {
     "node": ">=22"

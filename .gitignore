@@ -2,3 +2,5 @@ node_modules/
 .wrangler/
 public/
 data/tweets.json
+data/embeds.json
+data/embeds.json.tmp
