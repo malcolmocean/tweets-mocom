@@ -137,7 +137,9 @@ export function embedHtml(e, { label = '' } = {}) {
 // `ctx.embed(id)` supplies the card data for a referenced tweet, if we have it —
 // see embedContext() in embeds.js. Without it (or without a cached embed) the tweet
 // renders as it always did: a line naming who was being answered or quoted.
-export function tweetHtml(t, { showDate = true, ctx = null } = {}) {
+// `showStats: false` drops the like/RT counts — thread pages read as one piece of
+// writing, and a score under every paragraph pulls against that.
+export function tweetHtml(t, { showDate = true, showStats = true, ctx = null } = {}) {
   const cls = 'tweet' + (t.isReplyToOther ? ' is-reply' : '') + (t.isRetweet ? ' is-retweet' : '');
   const media = t.media.map(m => m.type === 'photo'
     // Twitter's CDN has dropped some older media; a broken image removes its own figure.
@@ -169,7 +171,7 @@ export function tweetHtml(t, { showDate = true, ctx = null } = {}) {
       : '';
   // No like/RT counts on a retweet: the archive's numbers there are the original
   // tweet's, and showing them next to your own would read as yours.
-  const stats = t.isRetweet ? '' :
+  const stats = t.isRetweet || !showStats ? '' :
     `<span class="stat">${plural(t.likes, 'like')}</span>
   <span class="stat">${plural(t.rts, 'RT')}</span>`;
   return `<article class="${cls}" id="t${esc(t.id)}">

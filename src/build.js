@@ -135,9 +135,15 @@ ${FILTER_SCRIPT}`,
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function threadPage(th, name, prev, next, ctx) {
   const first = th.tweets[0];
   const snippet = first.text.replace(/https?:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  // A thread written in one sitting reads as one piece, so only the opening tweet is
+  // dated. A tweet added a day or more later is a genuine addition — that one says when.
+  const start = Date.parse(first.at);
+  const dated = t => t === first || Date.parse(t.at) - start >= DAY_MS;
   return layout({
     title: `${name.title} — ${SITE_TITLE}`,
     description: snippet,
@@ -148,7 +154,7 @@ function threadPage(th, name, prev, next, ctx) {
 <p class="lede">${th.len} tweets · <a href="/by-month/${th.month}/">${monthLabel(th.month)}</a> ·
 ${num(th.likes)} likes · ${num(th.rts)} retweets ·
 <a href="${esc(permalink(first))}">read on X</a></p>
-${th.tweets.map((t, i) => tweetHtml(t, { showDate: i === 0, ctx })).join('\n')}
+${th.tweets.map(t => tweetHtml(t, { showDate: dated(t), showStats: false, ctx })).join('\n')}
 <nav class="pager">
   <span>${prev ? `<a href="/threads/${esc(prev.slug)}/">← ${esc(prev.title)}</a>` : ''}</span>
   <span>${next ? `<a href="/threads/${esc(next.slug)}/">${esc(next.title)} →</a>` : ''}</span>
