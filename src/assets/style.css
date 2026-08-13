@@ -5,8 +5,8 @@
   --muted: #6b6560;
   --faint: #96908a;
   --rule: #e6e1da;
-  --accent: #2f6f7d;
-  --accent-soft: #e7f1f3;
+  --accent: #1d9bf0;
+  --accent-soft: #e3f0fc;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -16,11 +16,13 @@
     --muted: #9a938b;
     --faint: #6f6862;
     --rule: #2e2b25;
-    --accent: #7cc2cf;
-    --accent-soft: #1e2c30;
+    --accent: #45a8f2;
+    --accent-soft: #12293d;
   }
 }
 * { box-sizing: border-box; }
+::selection { background: var(--accent); color: #fff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 body {
   margin: 0;
   background: var(--bg);
@@ -33,17 +35,30 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* header */
-.site-head {
-  display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem;
-  align-items: baseline;
-  padding-bottom: 0.85rem; margin-bottom: 1.6rem;
-  border-bottom: 1px solid var(--rule);
+/* header — blue-filtered version of the mosaic banner on malcolmocean.com */
+.banner {
+  background: #0d6aad url(/header-bg.png) center 35% / cover no-repeat;
+  margin-bottom: 1.6rem;
 }
-.site-head .home { font-weight: 600; color: var(--fg); }
-.site-head nav { display: flex; gap: 1rem; margin-left: auto; font-size: 0.92rem; }
-.site-head nav a { color: var(--muted); }
-.site-head nav a.on { color: var(--accent); font-weight: 600; }
+.banner-in {
+  max-width: 44rem; margin: 0 auto; padding: 1.1rem;
+  min-height: clamp(6.5rem, 18vw, 9.5rem);
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem;
+  align-items: flex-end; padding-bottom: 1.1rem;
+}
+.banner-in.wide { max-width: 62rem; }
+.banner .home {
+  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em;
+  color: #fff; text-shadow: 0 1px 10px rgba(0, 25, 50, 0.55);
+}
+.banner .home:hover { text-decoration: none; }
+.banner nav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; margin-left: auto; font-size: 0.92rem; }
+.banner nav a {
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 8px rgba(0, 25, 50, 0.45);
+}
+.banner nav a:hover { color: #fff; }
+.banner nav a.on { color: #fff; font-weight: 600; box-shadow: 0 2px 0 #fff; text-decoration: none; }
 
 h1 { font-size: 1.65rem; line-height: 1.25; letter-spacing: -0.02em; margin: 0 0 0.4rem; font-weight: 650; }
 h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
@@ -54,6 +69,13 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
 .tweet {
   padding: 0.9rem 0;
   border-bottom: 1px solid var(--rule);
+}
+/* a faint wash on hover makes the tweet under the cursor easy to track while scanning */
+@media (hover: hover) {
+  .tweet:hover {
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    border-radius: 6px;
+  }
 }
 .tweet-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .tweet-meta {

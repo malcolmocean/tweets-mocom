@@ -1,8 +1,13 @@
 # visual
-- [ ] theme upgrades: use twitter blue everywhere.
-- [ ] make a header that's got the same vibe as the header of malcolmocean.com but is twitter blue.
-  - maybe not totally monochrome but like, hue +/- 10 or 15? could literally run some filters on that image
-- [ ] make 1-3 additional ui/ux improvements
+- [x] theme upgrades: use twitter blue everywhere.
+  - accent palette → #1d9bf0 (light) / #45a8f2 (dark) in style.css
+- [x] make a header that's got the same vibe as the header of malcolmocean.com but is twitter blue.
+  - ran malcolmocean.com's mosaic header.png through a hue-compression filter (all hues
+    mapped to twitter-blue ±14°) → src/assets/header-bg.png; full-width banner with
+    white title + nav, favicon cropped from the same mosaic
+- [x] make 1-3 additional ui/ux improvements
+  - favicon + theme-color meta, ::selection / :focus-visible in twitter blue,
+    faint blue wash on tweet hover
 
 # content
 - [x] for QTs, embed them using... the same method that ~/dev/xyxz uses

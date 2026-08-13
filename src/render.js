@@ -31,20 +31,24 @@ ${canonical ? `<link rel="canonical" href="${esc(SITE + canonical)}">` : ''}
 ${canonical ? `<meta property="og:url" content="${esc(SITE + canonical)}">` : ''}
 <meta name="twitter:card" content="summary">
 <meta name="twitter:creator" content="@${USERNAME}">
+<meta name="theme-color" content="#1d9bf0">
+<link rel="icon" type="image/png" href="/favicon.png">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="wrap${wide ? ' wide' : ''}">
-<header class="site-head">
-  <a class="home" href="/">${esc(SITE_TITLE)}</a>
-  <nav>
-    <a href="/by-month/"${nav === 'by-month' ? ' class="on"' : ''}>By month</a>
-    <a href="/threads/"${nav === 'threads' ? ' class="on"' : ''}>Threads</a>
-    <a href="/top/"${nav === 'top' ? ' class="on"' : ''}>Top</a>
-    <a href="/replies/"${nav === 'replies' ? ' class="on"' : ''}>Replies</a>
-    <a href="/retweets/"${nav === 'retweets' ? ' class="on"' : ''}>Retweets</a>
-  </nav>
+<header class="banner">
+  <div class="banner-in${wide ? ' wide' : ''}">
+    <a class="home" href="/">${esc(SITE_TITLE)}</a>
+    <nav>
+      <a href="/by-month/"${nav === 'by-month' ? ' class="on"' : ''}>By month</a>
+      <a href="/threads/"${nav === 'threads' ? ' class="on"' : ''}>Threads</a>
+      <a href="/top/"${nav === 'top' ? ' class="on"' : ''}>Top</a>
+      <a href="/replies/"${nav === 'replies' ? ' class="on"' : ''}>Replies</a>
+      <a href="/retweets/"${nav === 'retweets' ? ' class="on"' : ''}>Retweets</a>
+    </nav>
+  </div>
 </header>
+<div class="wrap${wide ? ' wide' : ''}">
 ${body}
 <footer>
   Tweets by <a href="https://x.com/${USERNAME}">@${USERNAME}</a> ·

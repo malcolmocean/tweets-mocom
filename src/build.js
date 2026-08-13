@@ -372,7 +372,7 @@ async function main() {
 
   await rm(PUBLIC_DIR, { recursive: true, force: true });
   await mkdir(PUBLIC_DIR, { recursive: true });
-  await cp(join(SRC, 'assets/style.css'), join(PUBLIC_DIR, 'style.css'));
+  await cp(join(SRC, 'assets'), PUBLIC_DIR, { recursive: true });
 
   const topThreads = [...list].sort((a, b) => b.th.likes - a.th.likes).slice(0, 6);
   const replyCount = archive.own.filter(t => t.isReplyToOther).length;
