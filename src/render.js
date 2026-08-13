@@ -94,6 +94,11 @@ export function linkify(tweet, text = tweet.text, { omit = null } = {}) {
 
 export const permalink = t => `https://x.com/${USERNAME}/status/${t.id}`;
 
+// The undated tweets in a thread still need a way out to the original, but a word
+// there would land in anything copied off the page and break the prose. An
+// open-in-new-window glyph is drawn, not written, so a copy takes the text only.
+const PERMALINK_ICON = `<svg class="ext" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" focusable="false"><path d="M8 2.25H3.25A1.5 1.5 0 0 0 1.75 3.75v7A1.5 1.5 0 0 0 3.25 12.25h7a1.5 1.5 0 0 0 1.5-1.5V6"/><path d="M8.75 1.75h3.5v3.5M12.25 1.75 6.5 7.5"/></svg>`;
+
 const fmtDate = at => new Date(at).toLocaleDateString('en-US',
   { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
@@ -129,7 +134,7 @@ export function embedHtml(e, { label = '' } = {}) {
     ? `\n<p class="embed-extra"><a href="${esc(e.href)}">read the whole tweet →</a></p>` : ''}${e.photo
     ? `\n<div class="media"><img src="${esc(e.photo)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></div>`
     : ''}${extra.length ? `\n<p class="embed-extra">[${esc(extra.join(' + '))}]</p>` : ''}${e.truncated
-    ? `\n<p class="embed-extra">[long tweet — <a href="${esc(e.href)}">read the rest on X</a>]</p>` : ''}${e.quoted
+    ? `\n<p class="embed-extra">[long tweet — <a href="${esc(e.href)}">read the rest on Twitter</a>]</p>` : ''}${e.quoted
     ? `\n<p class="embed-quoted">quoting <a href="https://x.com/${esc(e.quoted.user)}">@${esc(e.quoted.user)}</a>: ${esc(e.quoted.text.slice(0, 280))}</p>` : ''}
 </blockquote>`;
 }
@@ -177,7 +182,7 @@ export function tweetHtml(t, { showDate = true, showStats = true, ctx = null } =
   return `<article class="${cls}" id="t${esc(t.id)}">
 ${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text, { omit })}</p>${media}${quote}
 <p class="tweet-meta">
-  ${showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : `<a href="${esc(permalink(t))}">on X</a>`}
+  ${showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : `<a class="permalink" href="${esc(permalink(t))}" title="Read this tweet on Twitter" aria-label="Read this tweet on Twitter">${PERMALINK_ICON}</a>`}
   ${stats}
 </p>
 </article>`;

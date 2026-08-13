@@ -85,6 +85,14 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
 .tweet-meta a { color: var(--faint); }
 .tweet-meta .stat { white-space: nowrap; }
 .tweet-meta .stat b { font-weight: 600; color: var(--muted); }
+/* the drawn permalink on an undated thread tweet — as quiet as the dates it stands in
+   for, and no quieter: --faint on the dark background is already at the floor */
+.permalink { display: inline-flex; align-items: center; }
+.permalink:hover { color: var(--accent); }
+.permalink .ext {
+  fill: none; stroke: currentColor; stroke-width: 1.3;
+  stroke-linecap: round; stroke-linejoin: round;
+}
 .reply-to { font-size: 0.83rem; color: var(--faint); margin: 0 0 0.3rem; }
 .media { margin: 0.7rem 0 0; }
 .media img {

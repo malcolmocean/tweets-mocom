@@ -153,7 +153,7 @@ function threadPage(th, name, prev, next, ctx) {
 <h1>${esc(name.title)}</h1>
 <p class="lede">${th.len} tweets · <a href="/by-month/${th.month}/">${monthLabel(th.month)}</a> ·
 ${num(th.likes)} likes · ${num(th.rts)} retweets ·
-<a href="${esc(permalink(first))}">read on X</a></p>
+<a href="${esc(permalink(first))}">read on Twitter</a></p>
 ${th.tweets.map(t => tweetHtml(t, { showDate: dated(t), showStats: false, ctx })).join('\n')}
 <nav class="pager">
   <span>${prev ? `<a href="/threads/${esc(prev.slug)}/">← ${esc(prev.title)}</a>` : ''}</span>
