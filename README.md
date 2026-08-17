@@ -63,6 +63,7 @@ in the archive, and its card links to this site rather than to X.
 ## Refreshing
 
 ```sh
+npm run update      # the same five steps, unattended and guarded — use this one
 npm run refresh     # fetch → fetch-embeds → name-threads → build → deploy
 ```
 
@@ -76,8 +77,7 @@ npm run build         # data/ → public/  (~2s, wipes and regenerates public/)
 npm run deploy        # wrangler deploy
 ```
 
-Designed to be run on a schedule (cron, GitHub Action, or a Cloudflare cron trigger driving a
-CI job). Two things make repeat runs cheap and stable:
+Three things make repeat runs cheap and stable:
 
 - **`fetch` is a full refetch, deliberately.** Likes and RTs on old tweets keep changing, so an
   incremental "new tweets only" pull would freeze engagement at first-seen values and rot the
@@ -88,10 +88,55 @@ CI job). Two things make repeat runs cheap and stable:
 - **`fetch-embeds` is incremental too**, and for a harder reason: it's ~26k requests to an
   endpoint that owes us nothing. Only tweets missing from `data/embeds.json` are fetched, so a
   routine refresh costs a few hundred requests. Worth keeping (and backing up) even though it's
-  gitignored: tweets that get deleted between refreshes can't be fetched again.
+  gitignored: tweets that get deleted between refreshes can't be fetched again. `update.js`
+  keeps a `data/embeds.json.bak` for that reason.
 
 Thread slugs are the URL, so they're stable as long as `thread-names.json` is kept — don't
 delete it. Collisions get a numeric suffix (`-2`), newest thread keeps the bare slug.
+
+## Auto-updating
+
+`npm run update` (`src/update.js`) is the scheduled version of `refresh`: the same five steps,
+written for a run nobody is watching. A daily one takes about two minutes.
+
+```sh
+npm run update                    # fetch, rebuild, deploy if anything changed
+npm run update -- --no-deploy     # everything but the deploy
+npm run update -- --force         # deploy even if nothing changed
+npm run update -- --no-embeds --no-names --embed-limit 500
+```
+
+What it adds over running the steps by hand:
+
+- **One at a time.** A lock file in `data/` keeps a slow run and the next cron tick from
+  interleaving two fetches over the same `data/`. A lock whose process is gone is taken over.
+- **The archive is restored if the refetch looks wrong.** `fetch` overwrites all 53k tweets in
+  one go, so a half-answered API is the one failure that could quietly empty the site. The
+  previous copy is kept as `data/tweets.json.bak`, and put back if what arrives isn't the right
+  account, isn't parseable, or is more than 2% smaller than what it replaced.
+- **It only deploys what's new.** The build's inputs — which tweets exist, their like/RT counts,
+  and `thread-names.json` — are hashed and compared against the hash of the last successful
+  deploy (`data/update-state.json`), so a run that dies before deploying still deploys next time,
+  and one where nothing actually moved skips the build entirely. A deploy that went out with a
+  step still owing work (names not written, embeds rate-limited) is recorded as `pending`, which
+  stops the next run from skipping and stranding it.
+- **Only a build failure is fatal.** Embeds and thread names are enrichments — a rate-limited
+  syndication API or a missing `ANTHROPIC_API_KEY` costs a card or a thread page, not the run.
+  A failed build stops before the deploy, so a half-written `public/` never reaches the live site.
+- **It checks which Cloudflare account it's logged into** (`DEPLOY_ACCOUNT_EMAIL` in `config.js`)
+  and refuses to deploy from the work one.
+- **Everything is timestamped into `data/update.log`**, which is the only evidence a 3am run
+  leaves. Exit code is 0 on success or nothing-to-do, 1 on a failed run.
+
+Cron has no login shell, so put `ANTHROPIC_API_KEY=…` in a `.env` at the repo root — `update.js`
+reads it, and anything already in the environment wins. A daily run at 4:07am:
+
+```cron
+7 4 * * * cd /Users/malcolm/dev/personal/tweets-mocom && /opt/homebrew/bin/node src/update.js >/dev/null 2>&1
+```
+
+(Absolute node path on purpose — cron's `PATH` won't find nvm's. On macOS, cron needs Full Disk
+Access for the repo; `launchd` with a `StartCalendarInterval` avoids that if it bites.)
 
 ## Layout
 
@@ -106,6 +151,7 @@ src/
   name-threads.js → data/thread-names.json (Claude API, batched + concurrent)
   render.js       page shell, tweet markup, client-side sort/filter scripts
   build.js        → public/
+  update.js       one guarded, unattended run of all of the above (cron entry point)
   assets/style.css
 data/             fetched + generated (not hand-edited)
 public/           generated — wiped on every build, don't edit

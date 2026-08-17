@@ -12,6 +12,11 @@ export const USERNAME = 'Malcolm_Ocean';
 export const SITE = 'https://tweets.malcolmocean.com';
 export const SITE_TITLE = 'Malcolm Ocean’s tweets';
 
+// This site lives on Malcolm's personal Cloudflare account, and this machine may
+// also be logged into a work one. update.js checks `wrangler whoami` against this
+// before it deploys anything.
+export const DEPLOY_ACCOUNT_EMAIL = 'malcolm.m.ocean@gmail.com';
+
 // A thread is "worth sharing" if it's long OR well-liked (Malcolm's call).
 export const THREAD_MIN_TWEETS = 6;
 export const THREAD_MIN_LIKES = 30;

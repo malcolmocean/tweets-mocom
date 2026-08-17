@@ -97,7 +97,7 @@ export const permalink = t => `https://x.com/${USERNAME}/status/${t.id}`;
 // The undated tweets in a thread still need a way out to the original, but a word
 // there would land in anything copied off the page and break the prose. An
 // open-in-new-window glyph is drawn, not written, so a copy takes the text only.
-const PERMALINK_ICON = `<svg class="ext" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" focusable="false"><path d="M8 2.25H3.25A1.5 1.5 0 0 0 1.75 3.75v7A1.5 1.5 0 0 0 3.25 12.25h7a1.5 1.5 0 0 0 1.5-1.5V6"/><path d="M8.75 1.75h3.5v3.5M12.25 1.75 6.5 7.5"/></svg>`;
+const PERMALINK_ICON = `<svg class="ext" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" focusable="false"><path d="M8 2.25H3.25A1.5 1.5 0 0 0 1.75 3.75v7A1.5 1.5 0 0 0 3.25 12.25h7a1.5 1.5 0 0 0 1.5-1.5V6"/><path d="M9.25 1.25h3.75v3.75M13 1.25 6.5 7.75"/></svg>`;
 
 const fmtDate = at => new Date(at).toLocaleDateString('en-US',
   { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -179,12 +179,18 @@ export function tweetHtml(t, { showDate = true, showStats = true, ctx = null } =
   const stats = t.isRetweet || !showStats ? '' :
     `<span class="stat">${plural(t.likes, 'like')}</span>
   <span class="stat">${plural(t.rts, 'RT')}</span>`;
+  // Thread tweets (no date in the meta row) get their permalink as a small icon
+  // pinned to the top-right corner instead of taking a line of its own.
+  const corner = showDate ? '' :
+    `<span class="permalink-pad" aria-hidden="true"></span><a class="permalink" href="${esc(permalink(t))}" title="Read this tweet on Twitter" aria-label="Read this tweet on Twitter">${PERMALINK_ICON}</a>`;
+  const metaInner = [
+    showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : '',
+    stats,
+  ].filter(Boolean).join('\n  ');
+  const meta = metaInner ? `<p class="tweet-meta">\n  ${metaInner}\n</p>` : '';
   return `<article class="${cls}" id="t${esc(t.id)}">
-${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text, { omit })}</p>${media}${quote}
-<p class="tweet-meta">
-  ${showDate ? `<a href="${esc(permalink(t))}"><time datetime="${esc(t.at)}">${esc(fmtDate(t.at))}</time></a>` : `<a class="permalink" href="${esc(permalink(t))}" title="Read this tweet on Twitter" aria-label="Read this tweet on Twitter">${PERMALINK_ICON}</a>`}
-  ${stats}
-</p>
+${corner}${rtHead}${replyTo}<p class="tweet-text">${linkify(t, t.isRetweet ? t.rtBody : t.text, { omit })}</p>${media}${quote}
+${meta}
 </article>`;
 }
 

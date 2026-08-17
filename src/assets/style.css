@@ -1,3 +1,10 @@
+@font-face {
+  font-family: "Maven Pro";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url(/maven-pro-latin.woff2) format("woff2");
+}
 :root {
   --bg: #fbfaf8;
   --panel: #ffffff;
@@ -21,13 +28,16 @@
   }
 }
 * { box-sizing: border-box; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 ::selection { background: var(--accent); color: #fff; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 17px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font: 17px/1.6 "Maven Pro", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 .wrap { max-width: 44rem; margin: 0 auto; padding: 1.25rem 1.1rem 5rem; }
@@ -35,30 +45,45 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* header — blue-filtered version of the mosaic banner on malcolmocean.com */
+/* header — blue-filtered version of the mosaic banner on malcolmocean.com.
+   Like the original: text sits at the top, and the mosaic's ragged bottom
+   edge transitions straight into the page — no overlay, no scrim.
+   aspect-ratio + background-size 100% shows the whole image, uncropped. */
 .banner {
-  background: #0d6aad url(/header-bg.png) center 35% / cover no-repeat;
+  background: url(/header-bg.png) center top / 100% auto no-repeat;
+  aspect-ratio: 1504 / 352;
   margin-bottom: 1.6rem;
 }
 .banner-in {
   max-width: 44rem; margin: 0 auto; padding: 1.1rem;
-  min-height: clamp(6.5rem, 18vw, 9.5rem);
-  display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem;
-  align-items: flex-end; padding-bottom: 1.1rem;
+  display: flex; flex-direction: column; flex-wrap: wrap; gap: 0.35rem;
+  align-items: flex-start;
+  /* title and nav stack on the left, over the mosaic's dark band — the right
+     side of the image is pale cyan, where white text would wash out */
 }
 .banner-in.wide { max-width: 62rem; }
 .banner .home {
-  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em;
-  color: #fff; text-shadow: 0 1px 10px rgba(0, 25, 50, 0.55);
+  font-weight: 800; font-size: 1.7rem; letter-spacing: -0.01em;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 20, 40, 0.7), 0 1px 14px rgba(0, 25, 50, 0.5);
 }
 .banner .home:hover { text-decoration: none; }
-.banner nav { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; margin-left: auto; font-size: 0.92rem; }
+.banner nav {
+  display: flex; flex-wrap: wrap; gap: 0.2rem 1.1rem;
+  font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em;
+}
 .banner nav a {
-  color: rgba(255, 255, 255, 0.82);
-  text-shadow: 0 1px 8px rgba(0, 25, 50, 0.45);
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 3px rgba(0, 20, 40, 0.7), 0 1px 10px rgba(0, 25, 50, 0.45);
 }
 .banner nav a:hover { color: #fff; }
-.banner nav a.on { color: #fff; font-weight: 600; box-shadow: 0 2px 0 #fff; text-decoration: none; }
+.banner nav a.on { color: #fff; font-weight: 700; box-shadow: 0 2px 0 #fff; text-decoration: none; }
+/* narrow screens: the full-aspect banner gets too short to hold the text —
+   switch to cover and let the banner grow with its content instead */
+@media (max-width: 40rem) {
+  .banner { aspect-ratio: auto; background-size: cover; background-position: left 20%; }
+  .banner-in { min-height: 6.5rem; }
+  .banner .home { font-size: 1.35rem; }
+}
 
 h1 { font-size: 1.65rem; line-height: 1.25; letter-spacing: -0.02em; margin: 0 0 0.4rem; font-weight: 650; }
 h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
@@ -67,7 +92,10 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
 
 /* tweets */
 .tweet {
-  padding: 0.9rem 0;
+  /* negative margins keep the text aligned with the rest of the column while
+     giving the hover/target wash some breathing room around the text */
+  padding: 0.9rem 0.6rem;
+  margin: 0 -0.6rem;
   border-bottom: 1px solid var(--rule);
 }
 /* a faint wash on hover makes the tweet under the cursor easy to track while scanning */
@@ -77,6 +105,11 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
     border-radius: 6px;
   }
 }
+/* landing on a #t<id> anchor lights the tweet up */
+.tweet:target {
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
 .tweet-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .tweet-meta {
   margin-top: 0.4rem; font-size: 0.83rem; color: var(--faint);
@@ -85,10 +118,27 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
 .tweet-meta a { color: var(--faint); }
 .tweet-meta .stat { white-space: nowrap; }
 .tweet-meta .stat b { font-weight: 600; color: var(--muted); }
-/* the drawn permalink on an undated thread tweet — as quiet as the dates it stands in
-   for, and no quieter: --faint on the dark background is already at the floor */
-.permalink { display: inline-flex; align-items: center; }
-.permalink:hover { color: var(--accent); }
+/* the drawn permalink on an undated thread tweet, pinned to the tweet's top-right
+   corner — as quiet as the dates it stands in for, and no quieter: --faint on the
+   dark background is already at the floor */
+.tweet { position: relative; }
+.permalink {
+  position: absolute; top: 0.9rem; right: 0.6rem;
+  display: inline-flex; align-items: center;
+  color: var(--faint);
+}
+.permalink:hover { color: var(--accent); text-decoration: none; }
+/* Invisible float that reserves the corner where .permalink sits, so the first
+   line of tweet text wraps short of the icon instead of sliding underneath it.
+   The border-top-right-radius (with shape-outside) makes that wrap follow the
+   rounded corner of the tweet's hover wash rather than a hard rectangle.
+   It renders nothing — its only job is this effect on wrapping. */
+.permalink-pad {
+  float: right;
+  width: 1.1rem; height: 1.1rem;
+  border-top-right-radius: 6px;
+  shape-outside: border-box;
+}
 .permalink .ext {
   fill: none; stroke: currentColor; stroke-width: 1.3;
   stroke-linecap: round; stroke-linejoin: round;

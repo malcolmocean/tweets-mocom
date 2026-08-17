@@ -1,6 +1,11 @@
 node_modules/
 .wrangler/
 public/
+.env
 data/tweets.json
 data/embeds.json
 data/embeds.json.tmp
+data/*.bak
+data/update.log
+data/update-state.json
+data/.update.lock

@@ -23,4 +23,7 @@
   - THREAD_MIN_LEN = 4 in config.js; 965 threads → 648
 
 # auto-updating
-- [ ] write a script that will automatically pull more items from community archive and regenerate the site
+- [x] write a script that will automatically pull more items from community archive and regenerate the site
+  - `npm run update` → src/update.js: locked, logged, restores the archive if a refetch comes
+    back wrong, only deploys when the data differs from the last deploy, checks the Cloudflare
+    account first. Cron line + `.env` note in README.
