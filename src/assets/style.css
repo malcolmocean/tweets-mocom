@@ -80,7 +80,7 @@ a:hover { color: var(--accent-hi); text-decoration-thickness: 2px; }
   position: relative; z-index: 1;
 }
 .banner-in {
-  max-width: 44rem; margin: 0 auto; padding: 32px 1.1rem 0;
+  max-width: 44rem; margin: 0 auto; padding: 38px 1.1rem 0;
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .banner-in.wide { max-width: 62rem; }
@@ -101,7 +101,7 @@ a:hover { color: var(--accent-hi); text-decoration-thickness: 2px; }
 .banner nav a.on { color: #fff; font-weight: 700; box-shadow: 0 2px 0 #fff; text-decoration: none; }
 /* The homepage's counts, riding on the mosaic two rows under the nav — black
    under a white glow, which is how malcolmocean.com writes over this image. */
-.banner .stats { margin: 22px 0 0; gap: 3.5rem; }
+.banner .stats { margin: 25px 0 0; gap: 3.5rem; }
 .banner .stats div, .banner .stats b {
   color: #000; line-height: 32px;
   text-shadow: 0 0 7px #fff, 0 0 14px #fff;
@@ -130,6 +130,11 @@ a:hover { color: var(--accent-hi); text-decoration-thickness: 2px; }
 
 h1 { font-size: 1.65rem; line-height: 1.25; letter-spacing: -0.02em; margin: 0 0 0.4rem; font-weight: 650; }
 h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
+/* The homepage's section headings each carry the icon of what they lead to — the
+   calendar, the thread, the like, the reply, the retweet. It sits outside the
+   link so it doesn't pick up the underline, and aria-hidden because the heading
+   already says the word. */
+.h-ico { margin-right: 0.45em; font-size: 1.05em; }
 .lede { color: var(--muted); margin: 0 0 1.8rem; }
 .crumb { font-size: 0.85rem; color: var(--faint); margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.07em; }
 

@@ -318,18 +318,18 @@ function homePage({ archive, ms, threadList, topThreads, replyCount }) {
     description: `An archive of @${USERNAME}'s ${num(archive.own.length)} tweets, browsable by month, by thread, and by what did best.`,
     canonical: '/',
     overBanner: stats,
-    body: `<h2><a href="/by-month/">By month</a></h2>
+    body: `<h2><span class="h-ico" aria-hidden="true">📅</span><a href="/by-month/">By month</a></h2>
 <p>A ${ms.length}-month calendar, each month coloured by its retweets, likes, and volume.</p>
-<h2><a href="/threads/">Threads</a></h2>
+<h2><span class="h-ico" aria-hidden="true">🧵</span><a href="/threads/">Threads</a></h2>
 <p>${num(threadList.length)} threads worth sharing, each on its own page, sortable by date, length, or reception.</p>
 <ul>${topThreads.map(({ th, name }) =>
   `<li><a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a> <span style="color:var(--faint)">— ${th.len} tweets, ${num(th.likes)} likes</span></li>`).join('\n')}</ul>
-<h2><a href="/top/">Top tweets</a></h2>
+<h2><span class="h-ico" aria-hidden="true">❤️</span><a href="/top/">Top tweets</a></h2>
 <p>The most-liked and most-retweeted, sortable several ways.</p>
-<h2><a href="/replies/">Top replies</a></h2>
+<h2><span class="h-ico" aria-hidden="true">💬</span><a href="/replies/">Top replies</a></h2>
 <p>The best-received of the ${num(replyCount)} replies he's written to other people, each shown
 under the tweet it answers.</p>
-<h2><a href="/retweets/">Retweets</a></h2>
+<h2><span class="h-ico" aria-hidden="true">🔁</span><a href="/retweets/">Retweets</a></h2>
 <p>${num(rtCount)} tweets passed on, searchable and tallied by who wrote them.</p>`,
   });
 }
