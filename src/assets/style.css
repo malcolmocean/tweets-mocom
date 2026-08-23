@@ -135,6 +135,17 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
    link so it doesn't pick up the underline, and aria-hidden because the heading
    already says the word. */
 .h-ico { margin-right: 0.45em; font-size: 1.05em; }
+
+/* The random top tweet on the homepage. It arrives after the page does, so it
+   fades in rather than appearing mid-read, and takes up no room until it's there. */
+.rando { opacity: 0; transition: opacity .25s ease-in; }
+.rando.in { opacity: 1; }
+.rando .tweet { border-bottom: none; }
+.rando-cap {
+  font-size: 0.78rem; color: var(--faint); margin: 0.9rem 0 0;
+  text-transform: uppercase; letter-spacing: 0.07em;
+}
+@media (prefers-reduced-motion: reduce) { .rando { transition: none; } }
 .lede { color: var(--muted); margin: 0 0 1.8rem; }
 .crumb { font-size: 0.85rem; color: var(--faint); margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.07em; }
 

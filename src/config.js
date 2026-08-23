@@ -30,4 +30,7 @@ export const CHAIN_MIN_TWEETS = 2;
 
 // How many rows the "most of X" pages carry.
 export const TOP_TWEETS = 500;
+// How many of those the homepage draws its random tweet from. Fetched after the
+// page renders, so this is a size budget rather than a page-weight one.
+export const RANDOM_TOP_SAMPLE = 150;
 export const TOP_REPLIES = 250;

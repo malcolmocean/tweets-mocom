@@ -242,6 +242,29 @@ document.querySelectorAll('input[data-filter]').forEach(function (box) {
 // Substring search over table rows. The haystack is read off the rows themselves
 // rather than emitted as a data- attribute — on a 6k-row page that duplicated text
 // was more than half the bytes on the wire. Indexed once, lazily, on first keystroke.
+// The homepage's one live thing: a tweet from the top few hundred, drawn fresh on
+// every visit. The pages are static, so the pick happens in the browser — the
+// markup for the candidates is pre-rendered into /random-top.json at build time,
+// which is why what lands here looks like every other tweet on the site rather
+// than an iframe from Twitter. Fetched off the critical path and silent on
+// failure: nothing above it depends on the file arriving.
+export const RANDOM_TOP_SCRIPT = `<script>
+(function () {
+  var slot = document.getElementById('rando');
+  if (!slot || !window.fetch) return;
+  function go() {
+    fetch('/random-top.json').then(function (r) { return r.json(); }).then(function (list) {
+      if (!list || !list.length) return;
+      slot.innerHTML = '<p class="rando-cap">One of them, at random</p>' +
+        list[Math.floor(Math.random() * list.length)];
+      slot.className = 'rando in';
+    }).catch(function () {});
+  }
+  if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 2000 });
+  else setTimeout(go, 200);
+})();
+</script>`;
+
 export const SEARCH_SCRIPT = `<script>
 document.querySelectorAll('input[data-search]').forEach(function (input) {
   var rows = Array.prototype.slice.call(

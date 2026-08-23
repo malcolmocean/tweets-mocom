@@ -5,8 +5,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadArchive, assembleChains, chainToThread, worthSharing, months, retweetedAccounts, topReplies, MONTH_NAMES } from './model.js';
 import { loadEmbeds, embedContext } from './embeds.js';
-import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT, SEARCH_SCRIPT } from './render.js';
-import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, TOP_TWEETS, TOP_REPLIES } from './config.js';
+import { layout, esc, num, monthLabel, tweetHtml, permalink, SORT_SCRIPT, FILTER_SCRIPT, SEARCH_SCRIPT, RANDOM_TOP_SCRIPT } from './render.js';
+import { PUBLIC_DIR, THREAD_NAMES_JSON, SITE, SITE_TITLE, USERNAME, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, TOP_TWEETS, TOP_REPLIES, RANDOM_TOP_SAMPLE } from './config.js';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 const urls = [];
@@ -326,11 +326,13 @@ function homePage({ archive, ms, threadList, topThreads, replyCount }) {
   `<li><a href="/threads/${esc(name.slug)}/">${esc(name.title)}</a> <span style="color:var(--faint)">— ${th.len} tweets, ${num(th.likes)} likes</span></li>`).join('\n')}</ul>
 <h2><span class="h-ico" aria-hidden="true">❤️</span><a href="/top/">Top tweets</a></h2>
 <p>The most-liked and most-retweeted, sortable several ways.</p>
+<div class="rando" id="rando"></div>
 <h2><span class="h-ico" aria-hidden="true">💬</span><a href="/replies/">Top replies</a></h2>
 <p>The best-received of the ${num(replyCount)} replies he's written to other people, each shown
 under the tweet it answers.</p>
 <h2><span class="h-ico" aria-hidden="true">🔁</span><a href="/retweets/">Retweets</a></h2>
-<p>${num(rtCount)} tweets passed on, searchable and tallied by who wrote them.</p>`,
+<p>${num(rtCount)} tweets passed on, searchable and tallied by who wrote them.</p>
+${RANDOM_TOP_SCRIPT}`,
   });
 }
 
@@ -399,6 +401,15 @@ async function main() {
 
   const top = [...archive.own].sort((a, b) => b.likes - a.likes).slice(0, TOP_TWEETS);
   await page('top', topPage(top, archive.own.length), { priority: 0.9 });
+
+  // The homepage draws one of these at random on each visit, in the browser. They
+  // are rendered here, with the same function that renders every other tweet on the
+  // site, so the one that lands is a tweet of this site's and not an embed of
+  // Twitter's. Only the first slice: past a few hundred a "top tweet" isn't one.
+  const sample = top.slice(0, RANDOM_TOP_SAMPLE).map(t => tweetHtml(t, { ctx }));
+  const sampleJson = JSON.stringify(sample);
+  await writeFile(join(PUBLIC_DIR, 'random-top.json'), sampleJson);
+  console.log(`${sample.length} tweets in the homepage's random pick (${Math.round(sampleJson.length / 1024)} KB)`);
 
   const replies = topReplies(archive, TOP_REPLIES);
   await page('replies', repliesPage(replies, replyCount, ctx), { priority: 0.8 });
