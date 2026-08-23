@@ -304,26 +304,21 @@ ${SEARCH_SCRIPT}`,
 
 function homePage({ archive, ms, threadList, topThreads, replyCount }) {
   const totals = ms.reduce((a, m) => ({ likes: a.likes + m.likes, rts: a.rts + m.rts }), { likes: 0, rts: 0 });
-  const first = archive.tweets[0], last = archive.tweets.at(-1);
   const rtCount = archive.retweets.length;
-  return layout({
-    title: SITE_TITLE,
-    description: `An archive of @${USERNAME}'s ${num(archive.own.length)} tweets, browsable by month, by thread, and by what did best.`,
-    canonical: '/',
-    body: `<h1>${esc(SITE_TITLE)}</h1>
-<p class="lede">Everything <a href="https://x.com/${USERNAME}">@${USERNAME}</a> has tweeted between
-${esc(first.date)} and ${esc(last.date)}, sourced from the
-<a href="https://www.community-archive.org/">Community Archive</a> and rebuilt as plain, readable pages.</p>
-<div class="stats">
+  // The counts sit on the banner rather than the page: what the site is, is the
+  // mosaic plus these four numbers, and the sections below say the rest themselves.
+  const stats = `<div class="stats">
   <div><b>${num(archive.own.length)}</b> tweets</div>
   <div><b>${num(totals.likes)}</b> likes</div>
   <div><b>${num(totals.rts)}</b> retweets</div>
   <div><b>${num(threadList.length)}</b> threads</div>
-</div>
-<p class="note">Counts are of Malcolm's own tweets. The ${num(rtCount)} tweets he's
-<a href="/retweets/">retweeted</a> appear on the month pages but don't count towards his
-tweets, likes or retweets — that engagement belongs to whoever wrote them.</p>
-<h2><a href="/by-month/">By month</a></h2>
+</div>`;
+  return layout({
+    title: SITE_TITLE,
+    description: `An archive of @${USERNAME}'s ${num(archive.own.length)} tweets, browsable by month, by thread, and by what did best.`,
+    canonical: '/',
+    overBanner: stats,
+    body: `<h2><a href="/by-month/">By month</a></h2>
 <p>A ${ms.length}-month calendar, each month coloured by its retweets, likes, and volume.</p>
 <h2><a href="/threads/">Threads</a></h2>
 <p>${num(threadList.length)} threads worth sharing, each on its own page, sortable by date, length, or reception.</p>

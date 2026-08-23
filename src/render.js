@@ -16,7 +16,9 @@ export const monthLabel = key => {
   return `${MONTH_FULL[Number(m) - 1]} ${y}`;
 };
 
-export function layout({ title, description, body, nav = '', canonical, wide = false }) {
+// `overBanner` is HTML that rides on the mosaic itself, under the nav — the
+// homepage's counts, which are the whole of what its lede used to say in words.
+export function layout({ title, description, body, nav = '', canonical, wide = false, overBanner = '' }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -46,6 +48,7 @@ ${canonical ? `<meta property="og:url" content="${esc(SITE + canonical)}">` : ''
       <a href="/replies/"${nav === 'replies' ? ' class="on"' : ''}>Replies</a>
       <a href="/retweets/"${nav === 'retweets' ? ' class="on"' : ''}>Retweets</a>
     </nav>
+${overBanner}
   </div>
 </header>
 <div class="wrap${wide ? ' wide' : ''}">
