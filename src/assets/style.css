@@ -140,7 +140,17 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
    fades in rather than appearing mid-read, and takes up no room until it's there. */
 .rando { opacity: 0; transition: opacity .25s ease-in; }
 .rando.in { opacity: 1; }
-.rando .tweet { border-bottom: none; }
+/* A blue rule down its left side: this one tweet was chosen by the page rather
+   than by the reader, and the bar says so without a word. The tweet's own
+   negative margins go, so the bar sits on the column's edge and the text is
+   indented past it. */
+.rando .tweet {
+  border-bottom: none;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 7px 7px 0;
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
 .rando-cap {
   font-size: 0.78rem; color: var(--faint); margin: 0.9rem 0 0;
   text-transform: uppercase; letter-spacing: 0.07em;
