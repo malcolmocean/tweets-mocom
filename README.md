@@ -9,7 +9,7 @@ Live: **https://tweets.malcolmocean.com**
 
 | URL | What it is |
 |---|---|
-| `/` | Overview + stats |
+| `/` | Counts on the banner, a section per page below, and one of the 150 top tweets drawn at random on each visit |
 | `/by-month/` | Calendar: years as rows, months as columns. Each cell is `rgb(retweets, likes, tweet-count)`, each channel log-scaled against the busiest month in that dimension. |
 | `/by-month/YYYY-MM/` | Every tweet that month, chronological, with self-reply chains grouped. Replies to other people are toggleable (they stay in the HTML either way, so crawlers see everything). |
 | `/threads/` | All share-worthy threads, sortable by topic, date, length, likes, RTs |
@@ -25,6 +25,14 @@ Plus `/sitemap.xml` and `/robots.txt` — the archive is meant to be crawled.
 
 The 4-tweet floor is the load-bearing one: a tweet with an afterthought or two isn't a thread
 however well it did, and the well-liked short ones are already on `/top/`.
+
+## Demoting a reply
+
+Likes rank `/replies/`, and now and then they rank something that isn't worth leading with —
+a reply that did well but reads as ordinary, or one whose half of the conversation has since
+been deleted. `DEMOTED_REPLIES` in `src/config.js` is a set of tweet ids that stay on the page
+and keep their slot in the 250, but sort to the bottom under a heading that says so. Add an id
+with the reason beside it. Nothing else on the site reads the list.
 
 ## Retweets are shown but never counted
 
@@ -138,6 +146,35 @@ reads it, and anything already in the environment wins. A daily run at 4:07am:
 (Absolute node path on purpose — cron's `PATH` won't find nvm's. On macOS, cron needs Full Disk
 Access for the repo; `launchd` with a `StartCalendarInterval` avoids that if it bites.)
 
+## Pointing it at another account
+
+Everything account-specific sits in two files, so a fork is a small edit:
+
+- **`src/config.js`** — `USERNAME` (the handle as community-archive spells it), `SITE`,
+  `SITE_TITLE`, and `DEPLOY_ACCOUNT_EMAIL`, the Cloudflare login `update.js` refuses to deploy
+  without. The thread thresholds live here too and are worth re-tuning: 4+ tweets, and 6+ long
+  or 30+ likes, is calibrated to how one person posts.
+- **`wrangler.toml`** — the worker `name` and the `routes` domain.
+
+Then:
+
+```sh
+npm i
+npm run fetch && npm run build     # community-archive → data/ → public/, no API key needed
+npx wrangler deploy                # to your own Cloudflare account
+```
+
+Both enrichment steps are optional and degrade rather than fail. Without `name-threads` (an
+`ANTHROPIC_API_KEY`) threads are found but get no pages, since the slug is the name. Without
+`fetch-embeds` a quoted or replied-to tweet is a link instead of a card.
+
+The account has to be in [community-archive.org](https://www.community-archive.org/) first —
+that's where the tweets come from, and uploading your own archive is that project's onboarding.
+
+The mosaic banner (`src/assets/header-bg.png`, 1504×352, drawn at natural size on a 32px grid)
+and the favicon cropped from it are Malcolm's own artwork, from malcolmocean.com. Swap them for
+yours; the header CSS only assumes the 32px grid and the 352px height.
+
 ## Layout
 
 ```
@@ -158,7 +195,10 @@ public/           generated — wiped on every build, don't edit
 ```
 
 Sorting and filtering are client-side over rows already present in the HTML, so every page is a
-single self-contained file that works without JS.
+single self-contained file that works without JS. The homepage's random tweet is the one thing
+that isn't in the HTML: its candidates are pre-rendered into `public/random-top.json` at build
+time and one is picked in the browser after the page is up, so without JS the page is simply the
+page it was before.
 
 ## Notes
 
