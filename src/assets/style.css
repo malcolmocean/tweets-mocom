@@ -77,10 +77,15 @@ a:hover { color: var(--accent-hi); text-decoration-thickness: 2px; }
   background: url(/header-bg.png) top center repeat-x;
   height: 320px;
   margin-bottom: -64px;
-  position: relative; z-index: 1;
+  /* The mosaic paints over the top of the page so the first heading tucks in
+     behind the ragged triangles — but painting over it must not mean catching
+     its clicks, so the empty banner box passes the pointer through and only the
+     column of actual chrome inside takes it back. */
+  position: relative; z-index: 1; pointer-events: none;
 }
 .banner-in {
   max-width: 44rem; margin: 0 auto; padding: 38px 1.1rem 0;
+  pointer-events: auto;
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .banner-in.wide { max-width: 62rem; }
