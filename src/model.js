@@ -1,7 +1,7 @@
 // Turns the raw archive into the objects the site is made of: tweets, threads, months.
 // Pure data — no HTML. Both build.js and name-threads.js consume this.
 import { readFile } from 'node:fs/promises';
-import { TWEETS_JSON, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, CHAIN_MIN_TWEETS } from './config.js';
+import { TWEETS_JSON, THREAD_MIN_TWEETS, THREAD_MIN_LIKES, THREAD_MIN_LEN, CHAIN_MIN_TWEETS, DEMOTED_REPLIES } from './config.js';
 
 // Twitter HTML-escapes &, < and > inside full_text, and the archive stores it that
 // way. Decode once on load so the text is plain and every renderer can escape it
@@ -127,11 +127,17 @@ export function threads(archive) {
 // Replies to other people, best-received first. A reply is written into someone
 // else's conversation, so it's the one kind of tweet here that can't be read alone —
 // which is why /replies/ shows each one under the tweet it answers.
+// A few of them are hand-demoted (DEMOTED_REPLIES): they keep their slot in the n
+// but come back separately, so the page can put them last instead of first.
 export function topReplies(archive, n) {
-  return archive.own
+  const ranked = archive.own
     .filter(t => t.isReplyToOther)
     .sort((a, b) => b.likes - a.likes || (a.at < b.at ? 1 : -1))
     .slice(0, n);
+  return {
+    kept: ranked.filter(t => !DEMOTED_REPLIES.has(t.id)),
+    demoted: ranked.filter(t => DEMOTED_REPLIES.has(t.id)),
+  };
 }
 
 // Month buckets, every month between the first and last tweet (gaps included as zeroes

@@ -34,3 +34,13 @@ export const TOP_TWEETS = 500;
 // page renders, so this is a size budget rather than a page-weight one.
 export const RANDOM_TOP_SAMPLE = 150;
 export const TOP_REPLIES = 250;
+
+// Replies that earned their likes but not their place at the top of /replies/. They
+// stay on the page — the archive doesn't hide things — but sort below every other
+// reply instead of leading the list. Reasons are kept next to the ids, because
+// "why is this one down here" is the only question the list raises.
+export const DEMOTED_REPLIES = new Set([
+  '1804197674809463019', // carabiners: well-liked, not worth reading first
+  '1795022615687401731', // "everything is monocausal": ditto
+  '1680075236509622272', // the tweet it answers is deleted, so it's half a conversation
+]);

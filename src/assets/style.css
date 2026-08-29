@@ -163,6 +163,15 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 0.8rem; font-weight: 650; }
 @media (prefers-reduced-motion: reduce) { .rando { transition: none; } }
 .lede { color: var(--muted); margin: 0 0 1.8rem; }
 .crumb { font-size: 0.85rem; color: var(--faint); margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.07em; }
+/* /replies/ sorts a few hand-picked replies to the bottom (DEMOTED_REPLIES in
+   config.js). Their like counts jump back up, so the break says it's on purpose. */
+.demoted-head {
+  margin: 2.6rem 0 1.4rem;
+  padding-top: 1.7rem;
+  border-top: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 0.9rem;
+}
 
 /* tweets */
 .tweet {

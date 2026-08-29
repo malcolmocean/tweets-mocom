@@ -235,18 +235,27 @@ ${SORT_SCRIPT}`,
 // here that was written into someone else's conversation, so each is shown under the
 // tweet it answers — the halves are only worth reading together. Where that tweet is
 // gone (deleted, or an account since locked) the reply stands alone with a link.
-function repliesPage(list, total, ctx) {
-  const body = list.map(t => tweetHtml(t, { ctx })).join('\n');
+// A handful are demoted by hand (config.js) and sit at the bottom under their own
+// heading, out of like order — the heading is there so that reads as deliberate.
+function repliesPage({ kept, demoted }, total, ctx) {
+  const render = ts => ts.map(t => tweetHtml(t, { ctx })).join('\n');
+  const tail = demoted.length
+    ? `<p class="demoted-head">And ${demoted.length === 1 ? 'one that did well' : `${demoted.length} that did well`}
+without being worth reading first, or answering a tweet that has since been deleted.</p>
+${render(demoted)}`
+    : '';
+  const count = kept.length + demoted.length;
   return layout({
     title: `Top replies — ${SITE_TITLE}`,
     description: `The best-received of the ${num(total)} replies @${USERNAME} has written to other people, each under the tweet it answers.`,
     canonical: '/replies/',
     nav: 'replies',
     body: `<h1>Top replies</h1>
-<p class="lede">The ${num(list.length)} most-liked of @${USERNAME}'s ${num(total)} replies to other
+<p class="lede">The ${num(count)} most-liked of @${USERNAME}'s ${num(total)} replies to other
 people. A reply is half a conversation, so each one sits under the tweet it answers —
 pulled from Twitter, and missing where that tweet has since been deleted.</p>
-${body}`,
+${render(kept)}
+${tail}`,
   });
 }
 
@@ -413,8 +422,9 @@ async function main() {
 
   const replies = topReplies(archive, TOP_REPLIES);
   await page('replies', repliesPage(replies, replyCount, ctx), { priority: 0.8 });
-  const withParent = replies.filter(t => ctx.embed(t.replyTo)).length;
-  console.log(`${replies.length} top replies of ${num(replyCount)} (${withParent} with the tweet they answer)`);
+  const all = [...replies.kept, ...replies.demoted];
+  const withParent = all.filter(t => ctx.embed(t.replyTo)).length;
+  console.log(`${all.length} top replies of ${num(replyCount)} (${withParent} with the tweet they answer, ${replies.demoted.length} demoted)`);
 
   const accounts = retweetedAccounts(archive);
   await page('retweets', retweetsPage(archive.retweets, accounts), { priority: 0.6 });
