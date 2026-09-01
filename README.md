@@ -177,9 +177,16 @@ yours; the header CSS only assumes the 32px grid and the 352px height.
 
 ## License
 
-The pipeline is MIT — see [LICENSE](LICENSE), which also says what the MIT doesn't reach: the
-banner and favicon (Malcolm's artwork), Maven Pro (SIL OFL 1.1), and the tweets themselves,
-which aren't in this repository at all. Terms for the writing are still undecided.
+The build pipeline — everything in `src/`, its configuration, and this documentation — is
+[MIT](LICENSE). Three things in or around the repo aren't covered by it:
+
+- **The tweets.** They aren't in this repository: they're fetched from community-archive.org at
+  build time and published at tweets.malcolmocean.com. Terms for the writing are still undecided;
+  ask.
+- **The mosaic banner** (`src/assets/header-bg.png`) **and the favicon cropped from it** —
+  Malcolm's own artwork, from malcolmocean.com. Not licensed for reuse; a fork brings its own.
+- **Maven Pro** (`src/assets/maven-pro-latin.woff2`), Joe Prince's typeface, under the
+  [SIL Open Font License 1.1](https://openfontlicense.org/).
 
 ## Layout
 

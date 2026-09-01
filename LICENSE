@@ -20,22 +20,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
----
-
-Scope
------
-
-The MIT license above covers the build pipeline in this repository: the code in
-`src/`, its configuration, and the documentation.
-
-It does not cover:
-
-- **The tweets.** They aren't in this repository — they're fetched from
-  community-archive.org at build time and published at tweets.malcolmocean.com.
-  Terms for the writing are not settled yet; ask.
-- **The mosaic banner** (`src/assets/header-bg.png`) **and the favicon cropped
-  from it.** Malcolm Ocean's own artwork, from malcolmocean.com. Not licensed
-  for reuse — a fork should bring its own.
-- **Maven Pro** (`src/assets/maven-pro-latin.woff2`), which is Joe Prince's
-  typeface, under the SIL Open Font License 1.1.
