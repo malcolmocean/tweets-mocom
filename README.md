@@ -175,6 +175,12 @@ The mosaic banner (`src/assets/header-bg.png`, 1504×352, drawn at natural size 
 and the favicon cropped from it are Malcolm's own artwork, from malcolmocean.com. Swap them for
 yours; the header CSS only assumes the 32px grid and the 352px height.
 
+## License
+
+The pipeline is MIT — see [LICENSE](LICENSE), which also says what the MIT doesn't reach: the
+banner and favicon (Malcolm's artwork), Maven Pro (SIL OFL 1.1), and the tweets themselves,
+which aren't in this repository at all. Terms for the writing are still undecided.
+
 ## Layout
 
 ```
