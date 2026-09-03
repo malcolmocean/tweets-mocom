@@ -240,8 +240,8 @@ ${SORT_SCRIPT}`,
 function repliesPage({ kept, demoted }, total, ctx) {
   const render = ts => ts.map(t => tweetHtml(t, { ctx })).join('\n');
   const tail = demoted.length
-    ? `<p class="demoted-head">And ${demoted.length === 1 ? 'one that did well' : `${demoted.length} that did well`}
-without being worth reading first, or answering a tweet that has since been deleted.</p>
+    ? `<p class="demoted-head">Others that got lots of likes but were moved to the bottom of the
+page because they're not that interesting.</p>
 ${render(demoted)}`
     : '';
   const count = kept.length + demoted.length;
